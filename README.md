@@ -8,7 +8,7 @@ Control Barrier Function (ZCBF) safety filter enforcing inter-agent
 collision avoidance.
 
 This is a direct continuation of the single-agent Dubins adaptive
-control work in [arXiv 2504.08190](https://arxiv.org/abs/2504.08190)
+control work in [Maldonado-Naranjo & Annaswamy, IEEE L-CSS 2025](https://ieeexplore.ieee.org/abstract/document/11045800)
 extended to a multi-agent setting with collision avoidance.
 
 ## Architecture
@@ -88,7 +88,7 @@ QP, and the four agents resolve simultaneously).
 ## Where this builds on existing work
 
 - **Single-agent precursor:** [Maldonado-Naranjo & Annaswamy, "Adaptive
-  Control for Dubins Vehicle Path Following", arXiv 2504.08190](https://arxiv.org/abs/2504.08190).
+  Control for Dubins Vehicle Path Following", IEEE Control Systems Letters, 2025](https://ieeexplore.ieee.org/abstract/document/11045800).
 - **Multi-agent foundation:** [Solano-Castellanos, Fisher & Annaswamy,
   "Safe and Stable Formation Control with Distributed Multi-Agents
   Using Adaptive Control and Control Barrier Functions", arXiv
