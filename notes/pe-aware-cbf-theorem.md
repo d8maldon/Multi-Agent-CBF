@@ -1,9 +1,9 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v12, Nagumo (1942) added as the foundational viability-theorem citation for the safety filter. Continuous-time simulation only; no hardware claims.
+**Status:** v13, fresh-eyes critical pass close-out: (1) §8.2 cross-swap rate corrected to $0.80\beta_1$ via stratum-direct calculation and reframed around fixed-direction-reference anisotropy; (2) units convention rewritten as explicit normalisation against $(T^*, L^*, u^*)$ so all §4 inequalities are dimensionless; (3) open question on off-worst-eigenvector references added. Continuous-time simulation only; no hardware claims.
 **Length target:** IEEE-LCSS 8-page limit; current draft fits ~6.5 pages with slack.
 
-**Units convention.** Position $x_i \in \mathbb{R}^d$ in $[\text{m}]$, time $t$ in $[\text{s}]$. Control $u$ in $[\text{m}/\text{s}]$ (single-integrator $\dot x = \Lambda u$). Gains: $K_T, K_F, \alpha$ in $[1/\text{s}]$; $\Lambda$ dimensionless; $\hat\theta_i, \kappa_\Lambda$ dimensionless; $\gamma$ in $[1/(\text{m}^2 \cdot \text{s})]$ for the normalised adaptive law. $L_{\text{QP}}^*$ dimensionless (data-to-solution Lipschitz on the same units). All numerical inequalities in §4 are in normalised units; the products $K_T \Lambda_{\min}$ and $\bar\mu^2 L_{\text{QP}}^{*\,2} K_T^{-1}$ both in $[1/\text{s}]$ as required for $\eta$ to be a rate.
+**Normalisation convention.** All quantities in §1-§7 are *dimensionless*, obtained by rescaling against fixed reference scales $T^* > 0$ (time), $L^* > 0$ (length), and $u^* := L^*/T^*$ (velocity). Specifically: $\tilde x := x/L^*$, $\tilde t := t/T^*$, $\tilde u := u/u^*$, $\tilde K_T := K_T \cdot T^*$, $\tilde\gamma := \gamma$ (already dimensionless under this rescaling), etc. Under this convention the plant equation $\dot x = \Lambda u$ becomes $d\tilde x/d\tilde t = \Lambda\, \tilde u$ with $\Lambda$ dimensionless. The decay rate $\eta$ is dimensionless (per unit normalised time); the physical rate is $\eta_{\text{phys}} = \eta / T^*$. The dwell-time bound $\tau_d$ in Lemma 5.6 is similarly dimensionless; physical dwell-time is $\tau_d^{\text{phys}} = T^* \tau_d$. Numerical values in §8.3 ($K_T = 4$, $\gamma = 0.15$, $r_{\text{safe}} = 0.4$, $u_{\max} = 25$, etc.) are reported with the engineering choice $T^* = 1$ s, $L^* = 1$ m; the gain condition $K_T \Lambda_{\min} > \bar\mu^2 L_{\text{QP}}^{*\,2}$ in §4.1 is then a numerical relation between dimensionless quantities (with $K_T = 4$ in our normalised units), giving $4 \cdot 0.6 = 2.4 > 0.09 \cdot 14.06 = 1.27$ ✓.
 
 ---
 
@@ -288,15 +288,32 @@ Thus $Q_1 = (1 - \bar\mu)\, \beta_1\, \mathrm{diag}(1, 0)$ and $\mathrm{tr}(Q_1)
 
 ### 8.2. $N=4$, $d=2$, cross-swap
 
-Agents at $(\pm 3, \pm 3)$ swapping diagonally. **Symmetry assumption (numerical-only):** the invariant measure $\mu$ is approximately symmetric under the dihedral $D_4$ action, hence each of the three pairs per agent is active for fraction $\bar\mu/3$ of the cycle. This is an *assumption on $\mu$*, not derived from the dynamics; verified numerically in §8.3. Asymmetric extensions would require resolving the actual $\mu$ via Davis (1984) PDMP simulation. For agent 1 going $(-3,-3)\to(3,3)$:
-- vs head-on agent 3: $F_1 \perp (1,1)/\sqrt{2}$, projector $\tfrac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix}$.
-- vs perpendicular agents 2, 4: projectors $\mathrm{diag}(0,1)$ and $\mathrm{diag}(1,0)$ respectively.
+Agents at $(\pm 3, \pm 3)$ swap diagonally; agent 1 at $(-3,-3)$ heads to target $(3,3)$. Reference $u_1^{\text{ref}}$ is fixed-direction along $\hat e_d := (1,1)/\sqrt{2}$ throughout the cross-swap (toward target), with $\|u_1^{\text{ref}}\|^2 = \beta_1$. Three pairs $\{(1,2), (1,3), (1,4)\}$, each at most singly active under (A5) for $d=2$. Active fraction $\bar\mu/3$ per pair (equal under approximate $\mathbb{Z}_4$ rotational symmetry of $\mu$; verified numerically in §8.3).
 
-Sum of pair-active projectors: $2I - \tfrac12\begin{pmatrix}1&1\\1&1\end{pmatrix} = \begin{pmatrix}1.5 & -0.5\\-0.5 & 1.5\end{pmatrix}$.
+Per-stratum projector and projected-reference energy:
+
+| Stratum | $\mu$-mass | Active normal | $\mathrm{Proj}_{F_1}$ | $\|\mathrm{Proj}_{F_1} u_1^{\text{ref}}\|^2$ |
+|---|---|---|---|---|
+| Off-active | $1-\bar\mu$ | - | $I$ | $\beta_1$ |
+| Pair $(1,3)$ head-on | $\bar\mu/3$ | $\hat e_d$ | $\tfrac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix}$ | $0$ ($u^{\text{ref}} \parallel$ normal) |
+| Pair $(1,2)$ perpendicular | $\bar\mu/3$ | $-\hat e_1$ | $\mathrm{diag}(0,1)$ | $\beta_1/2$ |
+| Pair $(1,4)$ perpendicular | $\bar\mu/3$ | $-\hat e_2$ | $\mathrm{diag}(1,0)$ | $\beta_1/2$ |
+
+Direct stratum sum (Birkhoff 1931):
 $$
-\bar P_1 \;=\; (1 - \bar\mu)\,I + \tfrac{\bar\mu}{3}\!\begin{pmatrix}1.5 & -0.5\\-0.5 & 1.5\end{pmatrix}.
+\mathrm{tr}(Q_1) \;=\; \mathbb{E}_\mu\big[\|\mathrm{Proj}_{F_1} u_1^{\text{ref}}\|^2\big] \;=\; (1-\bar\mu)\beta_1 + \tfrac{\bar\mu}{3}\!\Big(0 + \tfrac{\beta_1}{2} + \tfrac{\beta_1}{2}\Big) \;=\; \Big(1 - \tfrac{2\bar\mu}{3}\Big)\beta_1.
 $$
-With $\bar\mu = 0.3$: $\bar P_1 = \begin{pmatrix}0.85 & -0.05\\-0.05 & 0.85\end{pmatrix}$, eigenvalues $\{0.80, 0.90\}$, $\lambda_{\min}^+(\bar P_1) = 0.80$ (anisotropy diagnostic, *not* the rate). Under the $D_4$-symmetric idealisation, $\Sigma_1 \approx (\beta_1/2) I$ (the swap reference rotates between $\hat e_1, \hat e_2$ with equal $\mu$-mass), and $Q_1 = \bar P_1 \cdot (\beta_1/2) I$ factors approximately to give $\mathrm{tr}(Q_1) = (\beta_1/2) \cdot \mathrm{tr}(\bar P_1) = 0.85\,\beta_1$. **Convergence rate $\rho_1 = 0.85\, \gamma\,\beta_1$** (the trace-of-Fisher); the $0.80$ eigenvalue is the worst-direction anisotropy in the projector, not the rate itself.
+For $\bar\mu = 0.3$: $\mathrm{tr}(Q_1) = 0.80\,\beta_1$. **Convergence rate $\rho_1 = 0.80\,\gamma\,\beta_1$.**
+
+**Anisotropy structure (Klein-Rayleigh).** The averaged projector
+$$
+\bar P_1 \;=\; (1-\bar\mu) I + \tfrac{\bar\mu}{3}\!\begin{pmatrix}1.5 & -0.5\\-0.5 & 1.5\end{pmatrix} \;=\; \begin{pmatrix}0.85 & -0.05\\-0.05 & 0.85\end{pmatrix}
+$$
+has eigenvalues $\{1 - 2\bar\mu/3,\; 1 - \bar\mu/3\} = \{0.80,\; 0.90\}$ at $\bar\mu = 0.3$, with the worst (smallest) eigenvector $\hat e_d = (1,1)/\sqrt{2}$. **The cross-swap reference aligns exactly with this worst eigenvector.** Therefore
+$$
+\mathrm{tr}(Q_1) \;=\; \hat e_d^\top \bar P_1 \hat e_d \cdot \beta_1 \;=\; \lambda_{\min}^+(\bar P_1)\, \beta_1 \;=\; 0.80\,\beta_1,
+$$
+and the rate equals the worst-direction Rayleigh quotient of $\bar P_1$ times $\beta_1$. This is the *general principle for fixed-direction references*: $\mathrm{tr}(Q_i) = (u^{\text{ref}})^\top \bar P_i u^{\text{ref}} / \|u^{\text{ref}}\|^2 \cdot \beta_1$. The safety filter exposes the anisotropy of the reference relative to the active-set geometry - alignment with the worst eigenvector is the *slowest-identification* configuration. Quantifying this trade-off is the engineering content of the paper.
 
 ### 8.3. Simulation parameter values (for reproducibility)
 
@@ -381,6 +398,7 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 2. **Higher-relative-degree $h_{ij}$.** For Dubins / quadrotor agents, $h$ has relative degree 2; HOCBF [Xiao-Belta 2021] generalises the freedom cone.
 3. **Event-triggered communication (natural follow-up).** (A4) assumes continuous broadcast; the event-triggered extension with broadcast threshold $\delta_{\text{comm}}$ is the natural sequel paper, with the Cramér-Rao rate $\mathrm{tr}(Q_i)$ now degraded by an explicit $O(\delta_{\text{comm}}^2)$ term.
 5. **Port-Hamiltonian generalisation.** The parameter manifold $(e_i, \tilde\theta_i)$ carries a natural symplectic form $\omega = \mathrm{d}e_i \wedge \mathrm{d}\tilde\theta_i$, and the closed loop decomposes into a Hamiltonian part (driving the Noether $G_\lambda$ symmetry) plus a dissipative part (driving the Lyapunov decay). The port-Hamiltonian formulation [van der Schaft 1986; Ortega-Spong 1988] would generalise cleanly to non-scalar $\Lambda$ and higher-relative-degree $h_{ij}$ (Dubins / quadrotor agents).
+6. **Off-worst-eigenvector references.** In §8.1 and §8.2 the reference $u^{\text{ref}}$ is fixed-direction and happens to align with the worst eigenvector of $\bar P_i$, so $\mathrm{tr}(Q_i) = \lambda_{\min}^+(\bar P_i)\beta_1$ is the slowest possible identification rate compatible with the active-set geometry. Under a *time-varying* reference (e.g., a circular formation cycling through directions), is $\mathrm{tr}(Q_i)$ strictly larger than $\lambda_{\min}^+(\bar P_i)\beta_1$? Conjecture: yes. Proof would proceed via the inequality $\mathbb{E}_\mu[(u^{\text{ref}})^\top \bar P_i\, u^{\text{ref}}] \ge \lambda_{\min}^+(\bar P_i)\, \mathbb{E}_\mu[\|u^{\text{ref}}\|^2]$, with equality iff $u^{\text{ref}}$ lies $\mu$-a.e. in the worst eigenspace of $\bar P_i$. Designing $u^{\text{ref}}$ to maximise $\mathrm{tr}(Q_i)$ subject to formation-tracking constraints is the *active identifiability injection* problem.
 4. **Adversarial / Byzantine setting.** If a subset of agents broadcasts wrong $\hat\theta_j$, robust extensions are open.
 
 ---
@@ -439,6 +457,8 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 ---
 
 ## Appendix A. Version history (most recent only; full git log retains earlier)
+
+**v12 → v13 (modern-panel fresh-eyes pass close-out).** Cross-swap rate corrected from $0.85\beta_1$ to $0.80\beta_1$ (factored form was misapplied; reference is rank-1 along $(1,1)/\sqrt{2}$, aligned with the worst eigenvector of $\bar P_1$; the result $\mathrm{tr}(Q_i) = \lambda_{\min}^+(\bar P_i)\beta_1$ is the *general* fixed-direction-reference identity, not a coincidence). Units convention rewritten as explicit dimensionless normalisation against reference scales $(T^*, L^*, u^*)$. New open-question item on time-varying references whose energy spreads beyond the worst eigenspace of $\bar P_i$.
 
 **v9 → v10 (exposition cleanup).** Renumbered §1-§10 to remove a duplicated `## 1.` (Plant) header from v9; reconciled $Q^{\text{KB}}$ notation in the Kalman-Bucy equation (line 72); added (A5') to the theorem hypothesis list with note "vacuous for $d=2$"; deleted redundant "open-loop PE hypothesis" alongside (A2'); rewrote abstract to put Fisher information and Cramér-Rao bound in correct reciprocal relation; added units convention block at top.
 
