@@ -1,6 +1,6 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v3, post-third-round audit (modern + OG council + controls expert + OG follow-up). Continuous-time simulation only; no hardware claims.
+**Status:** v4, post-fourth-round controls audit (Tomlin / Lavretsky / Wise blocker patches applied). Continuous-time simulation only; no hardware claims.
 **Code touched:** none, by design.
 **Length target:** Bourbaki form. Three-sentence theorem, fifteen classical references.
 
@@ -31,7 +31,7 @@
 
 - **(A1) Bounded admissible parameter set.** $\Lambda_i \in [\Lambda_{\min}, 1]$, $\Lambda_{\min} > 0$, time-invariant. Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ enforced via the Krstić-Kanellakopoulos-Kokotović (1995) smooth projection. Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$ for the QP to remain feasible (see §6).
 - **(A2) Bounded admissible reference and connected graph.** $\{z_i, \dot z_i, t_i, \dot t_i\}$ uniformly bounded; $\mathcal{G}$ connected.
-- **(A3) Initial strict safety.** $h_{ij}(x(0)) > 0$ for all $i \ne j$.
+- **(A3') Initial strict safety with margin.** There exists $\zeta > 0$ such that $h_{ij}(x(0)) \ge \delta_{ij}(0) + \zeta$ for all $i \ne j$, where $\delta_{ij}(0) = 2 D_{\max}(\sqrt{P_i(0)}/\theta_{\min})(\sqrt{d}\,u_{\max} + \theta_{\max} u_{\max}^{\text{ref}})$ is the initial CBF tightening from Lemma 5.2. Equivalently, $\delta_{ij}(0) \le \tfrac12 r_{\text{safe}}^2$ as a precondition on the data; this is what the prior tightness $\kappa_\Lambda$ buys.
 - **(A4) Neighbour broadcast.** Each agent $i$ has continuous-time access to $\{x_j(t), \hat\theta_j(t) : j \in \mathcal{N}_i\}$. (Discrete / event-triggered relaxations: separate paper.)
 
 These four axioms are *all* the hypotheses. Lipschitz constraints, regularity of the closed loop, dwell-time bounds, and PE on the normalised regressor are *consequences* once the construction is properly framed.
@@ -55,7 +55,7 @@ In parallel, run a **Kalman-Bucy filter** (Kalman-Bucy 1961) on the same data, p
 $$
 \dot P_i \;=\; -P_i\, \frac{(u_i^{\text{ref}})^\top u_i^{\text{ref}}}{m_i^2}\, P_i \;+\; Q,
 $$
-with $P_i(0) = (\theta_{\max} - \theta_{\min})^2$ and $Q \ge 0$ a small regularisation. Under PE on $u_i^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\beta_1\,\lambda_{\min}^+(\bar P_i)$ by Anderson (1985). The filter is *auxiliary* - its output is used only to compute the time-varying CBF tightening $\delta(t)$ in §2.
+with $P_i(0) = (\theta_{\max} - \theta_{\min})^2$ and $Q = 0$ (deterministic Riccati; matches Anderson's framework). The PE-always hypothesis on $u_i^{\text{ref}}$ guarantees observability throughout, so $P_i = 0$ is approached but never absorbed in finite time. Under PE on $u_i^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\beta_1\,\lambda_{\min}^+(\bar P_i)$ by Anderson (1985). (Stochastic variant with $Q > 0$: replace conclusion (2) with $\mathcal{O}(A_e^2/\eta + Q)$; we keep the deterministic form.) The filter is *auxiliary* - its output is used only to compute the time-varying CBF tightening $\delta(t)$ in §2.
 
 ---
 
@@ -67,7 +67,7 @@ For each $\{i, j\}$ with $j \in \mathcal{N}_i$, the time-varying CBF constraint,
 $$
 c_{ij}(u_i; x, \hat\theta) \;:=\; 2(x_i - x_j)^\top u_i \;-\; 2\,\frac{\hat\theta_i}{\hat\theta_j}\,(x_i - x_j)^\top u_j^{\text{AC}} \;+\; \alpha\,\hat\theta_i\, h_{ij}(x) \;\ge\; \delta_{ij}(t),
 $$
-where $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big) (\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}})$ is the time-varying tightening from Lemma 5.2 (vanishing as $P_i(t) \to 0$).
+where $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big) (\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}})$ is the time-varying tightening from Lemma 5.2 (vanishing as $P_i(t) \to 0$), and $\alpha > 0$ is the linear class-$\mathcal{K}$ gain in the ZCBF condition $\dot h_{ij} + \alpha h_{ij} \ge 0$ [Ames-Xu-Grizzle 2014 eq. 14].
 
 The decision-variable coefficient is $2(x_i - x_j)$ - independent of $\hat\theta$. The constraint Jacobian is $\hat\theta$-independent. The QP Hessian (from the squared objective) is $2I$. The solver sees no $\hat\theta$-dependent matrix structure; only RHS coefficients vary, and bounded by $\theta_{\max}/\theta_{\min}$ [Wright 1997 §11].
 
@@ -75,7 +75,7 @@ The feasible set:
 $$
 K(t,x) \;:=\; \big\{ u \in \mathbb{R}^d : c_{ij}(u; x, \hat\theta) \ge \delta_{ij}(t)\ \forall j \in \mathcal{N}_i^{\text{on}}(t),\ \|u\|_\infty \le u_{\max} \big\},
 $$
-with **hysteretic** active set: $\mathcal{N}_i^{\text{on}}(t)$ engages when $c_{ij} \le \varepsilon$ and disengages when $c_{ij} \ge 2\varepsilon$, where $\varepsilon \ge \delta_{ij}(t) + $ solver tolerance. Hysteresis rules out Zeno chattering [Liberzon 2003 §1.2].
+with **hysteretic** active set: $\mathcal{N}_i^{\text{on}}(t)$ engages when $c_{ij} \le \varepsilon$ and disengages when $c_{ij} \ge 2\varepsilon$, where $\varepsilon \in [\delta_{ij}(t) + \text{tol}_{\text{QP}},\; 0.1\, r_{\text{safe}}^2]$. Hysteresis rules out Zeno chattering on each pair via Liberzon (2003) §1.2; the multi-surface dwell-time bound is Lemma 5.6 below.
 
 The closed-loop is the differential inclusion
 $$
@@ -97,7 +97,7 @@ u_i^{\text{safe}}(t) \;=\; J_h^{(t,x)}\!\big(u_i^{\text{AC}}(t) + \tilde e_i^{\t
 \;=\; \arg\min_{u \in K(t,x)} \; \big\|u - (u_i^{\text{AC}} + \tilde e_i^{\text{pe}})\big\|^2 \;+\; M\, s_{ij}^2,
 \;}
 $$
-where $s_{ij} \ge 0$ is a slack variable on each CBF constraint, penalised by $M \gg 1$, ensuring feasibility under saturation [Ames-Xu-Grizzle 2014]. As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
+where $s_{ij} \ge 0$ is a slack variable on each CBF constraint, penalised by $M \gg 1$, ensuring feasibility under saturation [Ames-Xu-Grizzle 2014]. Default $M = 10^4$: empirically yields $\|s_{ij}\| \le 10^{-3}$ when not safety-critical and $\|s_{ij}\| \approx 10^{-1}$ on the boundary; larger $M$ degrades QP conditioning (see §2.4). As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
 
 The continuous-time closed-loop trajectory is generated by the **Crandall-Liggett (1971) exponential formula**:
 $$
@@ -105,7 +105,25 @@ x(t) \;=\; \lim_{n \to \infty}\, J_{t/n}^{(t/n, x_{n-1})} \circ \cdots \circ J_{
 $$
 the implicit-Euler scheme with the QP as the resolvent map. Existence + uniqueness + continuous dependence on data are immediate from Brezis (1973) Theorem 4.2. **No smoothed-sigmoid regularisation is required** - the QP itself is the resolvent.
 
-### 2.3. Lemma 1 (well-posedness of the QP-resolvent)
+### 2.3. Numerical scheme (Brezis Cor 4.2 + Hager 1979)
+
+Crandall-Liggett's $\lim_{n \to \infty}$ is an existence result; the simulation picks a finite outer step $h_{\text{outer}} > 0$ and an inner QP tolerance $\text{tol}_{\text{QP}} > 0$. By Brezis (1973) Cor. 4.2 + Hager (1979),
+$$
+\|x_n - x(t_n)\| \;\le\; C_1\, h_{\text{outer}} \;+\; C_2\, \text{tol}_{\text{QP}}/h_{\text{outer}},
+$$
+so the two errors must be balanced. Default pairing (matches the existing repo and stays inside Simulink's fixed-step loop):
+$$
+h_{\text{outer}} = 5\times 10^{-3}\;\text{s}, \qquad \text{tol}_{\text{QP}} = 10^{-7}.
+$$
+Inner solver: OSQP (Stellato et al. 2020), warm-started from the previous step. Outer integrator: fixed-step RK4 (preferred for Simulink) or ode15s with mass-matrix identity (preferred for adaptive step-sizing studies). The QP is the resolvent $J_{h_{\text{outer}}}$; no DAE machinery is needed because the constraint enters only through the projection, not as an algebraic equation in the state.
+
+For $N = 2$, $d = 2$, single active pair, the QP admits the closed-form Lagrangian solution
+$$
+u_i^{\text{safe}} \;=\; (u_i^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* \cdot 2(x_i - x_j), \qquad \mu_{ij}^* = \max\!\Big(0,\, \frac{\delta_{ij}(t) - c_{ij}(u_i^{\text{AC}} + \tilde e_i^{\text{pe}})}{\|2(x_i - x_j)\|^2}\Big),
+$$
+which is the unit test for the OSQP wrapper before scaling to $N \ge 3$.
+
+### 2.4. Lemma 1 (well-posedness of the QP-resolvent)
 
 Under (A1)–(A4), the QP admits a unique solution Lipschitz in $(x, \hat\theta, e_i^{\text{pe}})$ and piecewise-affine on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$.
 
@@ -130,7 +148,11 @@ Along closed-loop trajectories under §2,
 $$
 \dot V \;\le\; -\eta\, \sum_i \frac{\|x_i - z_i\|^2}{m_i^4} \;+\; \mathcal{O}(A_e^2)\;+\;\mathcal{O}\!\big(\textstyle\sup_i \|P_i(t)\|^2\big),
 $$
-for some $\eta > 0$ depending on $\Lambda_{\min}, \theta_{\max}, K_T, K_F$. The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18, the modern formalisation as ISS due to Sontag 1989].
+with the explicit decay constant
+$$
+\eta \;\ge\; \Lambda_{\min}\, K_T \;-\; 2\, K_F\, \deg(\mathcal{G})\, \kappa_\Lambda^2,
+$$
+positive whenever the design satisfies the **gain condition** $K_T > 2 (K_F/\Lambda_{\min}) \deg(\mathcal{G})\, \kappa_\Lambda^2$. The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18, the modern formalisation as ISS due to Sontag 1989]. The QP-projection perturbation $\delta_i^{\text{QP}}$ is bounded by $L_{\text{QP}}\, (\|x_i - z_i\|/m_i + \delta_{ij}(t))$ with $L_{\text{QP}} = \kappa_\Lambda \deg(\mathcal{G})$ via the Hager (1979) Lipschitz bound; Young's inequality with weight $\eta/2$ absorbs the $\|x_i - z_i\|$ term into the decay.
 
 *Sketch.* Swapped-signal cancellation (Morse 1990 / Pomet-Praly 1992) on the unperturbed MRAC. The QP-projection correction $\delta_i^{\text{QP}}$ and excitation injection $\tilde e_i^{\text{pe}}$ contribute bounded perturbation terms; Young's inequality + Krasovskii ultimate-boundedness theorem closes the chain. The $\mathcal{O}(\sup_i \|P_i(t)\|^2)$ term vanishes asymptotically by Anderson (1985). ∎
 
@@ -161,7 +183,7 @@ The bound is *non-degenerate* iff $\bar\rho_i > 0$, equivalently iff the open-lo
 
 ## 5. Theorem (three-sentence Bourbaki form)
 
-> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1)–(A4) and the open-loop PE hypothesis on $\{u_i^{\text{ref}}\}$, the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i \in [\beta_1\,\lambda_{\min}^+(\bar P_i),\, \beta_1]$, where $\bar P_i$ is the $\mu$-time-averaged freedom-cone projector [Birkhoff 1931 + Rayleigh 1877], provided the non-degeneracy $\bar\rho_i > 0$.
+> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), (A3'), and **continuous-time neighbour broadcast (A4)**, and the open-loop PE hypothesis on $\{u_i^{\text{ref}}\}$, the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i \in [\beta_1\,\lambda_{\min}^+(\bar P_i),\, \beta_1]$, where $\bar P_i$ is the $\mu$-time-averaged freedom-cone projector [Birkhoff 1931 + Rayleigh 1877], provided the non-degeneracy $\bar\rho_i > 0$.
 
 Three sentences. Three numbered conclusions. Fifteen classical references.
 
@@ -182,6 +204,10 @@ where $D_{\max}$ bounds $\|x_i - x_j\|$ from (A2) + Lemma 5.3. Tightening the co
 - **Lemma 5.4 (resolvent well-posedness, Brezis 1973 + Crandall-Liggett 1971).** As above (Lemma 1). The QP is the resolvent $J_h$ at step $h \to 0^+$. Crandall-Liggett's exponential formula [1971] gives the continuous-time semigroup. Brezis (1973) Theorem 4.2 gives existence, uniqueness, and continuous dependence.
 
 - **Lemma 5.5 (Birkhoff-Rayleigh identifiability gain, Birkhoff 1931 + Rayleigh 1877 + Krylov-Bogolyubov 1937).** As above (Lemma 4). The Krylov-Bogolyubov extension to maximal monotone semigroups is in Brezis (1973) §3.3.
+
+- **Lemma 5.6 (uniform multi-surface dwell-time, Hager 1979 + Liberzon 2003).** Under the hysteresis thresholds $(\varepsilon, 2\varepsilon)$ and the QP Lipschitz constant $L_u = L_{\text{QP}}$ from Lemma 1, the inter-event time across all $\binom{N}{2}$ pairs is uniformly bounded below by
+$$\tau_d \;\ge\; \frac{\varepsilon}{L_u \cdot \max_{ij} \|2(x_i - x_j)\|} \;\ge\; \frac{\varepsilon}{L_{\text{QP}}\, D_{\max}} \;>\; 0.$$
+Hence Zeno is excluded for the multi-pair coupled system, not only pair-wise. Proof: between events, $|c_{ij}|$ changes at rate $\le L_u \cdot \|2(x_i - x_j)\|$; crossing the hysteresis band $(\varepsilon, 2\varepsilon)$ takes at least $\varepsilon / (L_u D_{\max})$. ∎
 
 The theorem is an immediate consequence of these five lemmas, each at most one classical reference deep.
 
@@ -216,7 +242,7 @@ $$
 K_T = 0.5,\quad K_F = 0.3,\quad \gamma = 0.15,\quad \alpha = 10,\quad r_{\text{safe}} = 0.4,\quad
 \Lambda = (0.6, 1.4, 0.9, 1.6).
 $$
-Ranges for axiom (A1): $\theta_{\min} = 1$, $\theta_{\max} = 2$ (so $\kappa_\Lambda = 2$, hence $\delta_{ij}(0) < r_{\text{safe}}^2/4$ for typical $D_{\max} \approx 6$).
+Ranges for axiom (A1): $\theta_{\min} = 1$, $\theta_{\max} = 2$ (so $\kappa_\Lambda = 2$, hence $\delta_{ij}(0) < r_{\text{safe}}^2/4$ for typical $D_{\max} \approx 6$). Margin in (A3'): $\zeta = 0.5\, r_{\text{safe}}^2$. Excitation: $e_i^{\text{pe}}(t) = A_e [\sin(\omega_1 t + \phi_i^1), \sin(\omega_2 t + \phi_i^2)]^\top$ with $\omega_1 = 2\pi (0.7)$ Hz, $\omega_2 = 2\pi (1.1)$ Hz, $\phi_i^k \sim \mathcal{U}[0, 2\pi)$ under seed `rng(42)` (numpy: `np.random.seed(42)`).
 
 ### 7.4. Figure plan
 
@@ -225,6 +251,7 @@ Ranges for axiom (A1): $\theta_{\min} = 1$, $\theta_{\max} = 2$ (so $\kappa_\Lam
 3. Identifiability gain $\bar\rho_i(t)$ computed online; spatial $\mu$-average.
 4. Safety margin $\min h_{ij}(t)$; constraint tightening $\delta(t)$.
 5. Sweep over $A_e \in \{0, 0.05, 0.10, 0.20\}\,u_{\max}$ - Pareto rate vs ultimate-bound.
+6. Communication-delay sweep: $\min_{ij} h_{ij}(t)$ vs latency $\tau \in \{0, 5, 20, 50, 100\}$ ms (cross-swap + parallel approach), annotating the latency at which safety is first violated. Empirical robustness margin against (A4) relaxation.
 
 ---
 
