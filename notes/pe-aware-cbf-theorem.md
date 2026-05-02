@@ -1,6 +1,6 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v4, post-fourth-round controls audit (Tomlin / Lavretsky / Wise blocker patches applied). Continuous-time simulation only; no hardware claims.
+**Status:** v6, modern-panel close-out (Tao / Annaswamy / Ames / Tomlin / Krstić). Continuous-time simulation only; no hardware claims.
 **Code touched:** none, by design.
 **Length target:** Bourbaki form. Three-sentence theorem, fifteen classical references.
 
@@ -30,11 +30,13 @@
 ## Axioms
 
 - **(A1) Bounded admissible parameter set.** $\Lambda_i \in [\Lambda_{\min}, 1]$, $\Lambda_{\min} > 0$, time-invariant. Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ enforced via the Krstić-Kanellakopoulos-Kokotović (1995) smooth projection. Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$ for the QP to remain feasible (see §6).
-- **(A2) Bounded admissible reference and connected graph.** $\{z_i, \dot z_i, t_i, \dot t_i\}$ uniformly bounded; $\mathcal{G}$ connected.
+- **(A2) Bounded admissible reference and connected graph.** $\{z_i, \dot z_i, t_i, \dot t_i\}$ uniformly bounded by $u_{\max}^{\text{ref}}$; $\mathcal{G}$ connected. Define $D_{\max} := 2\big(\sup_i \|z_i\|_\infty + R_{\text{UUB}}\big) + r_{\text{safe}}$, where $R_{\text{UUB}} = \sqrt{2 V(0)}$ is the UUB radius from Lemma 5.3 (the chain $D_{\max}$-needs-UUB is non-circular: $V(0)$ is a *datum*, not a closed-loop quantity).
+- **(A2') Closed-loop persistence of excitation.** The target trajectory $t_i(t)$ is non-stationary in the sense $\beta_1 I \preceq T_0^{-1} \int_t^{t+T_0} \dot t_i \dot t_i^\top\, d\tau$ for some $\beta_1, T_0 > 0$. Combined with the MRAC error decay (Lemma 5.3) this guarantees $u_i^{\text{ref}}$ remains PE on the closed loop, hence the Kalman-Bucy covariance $P_i(t) \to 0$ exponentially. (Without (A2'), use the stochastic variant $Q > 0$ in §1 and replace the $P_i \to 0$ claim with $P_i \to P_i^*$.)
 - **(A3') Initial strict safety with margin.** There exists $\zeta > 0$ such that $h_{ij}(x(0)) \ge \delta_{ij}(0) + \zeta$ for all $i \ne j$, where $\delta_{ij}(0) = 2 D_{\max}(\sqrt{P_i(0)}/\theta_{\min})(\sqrt{d}\,u_{\max} + \theta_{\max} u_{\max}^{\text{ref}})$ is the initial CBF tightening from Lemma 5.2. Equivalently, $\delta_{ij}(0) \le \tfrac12 r_{\text{safe}}^2$ as a precondition on the data; this is what the prior tightness $\kappa_\Lambda$ buys.
 - **(A4) Neighbour broadcast.** Each agent $i$ has continuous-time access to $\{x_j(t), \hat\theta_j(t) : j \in \mathcal{N}_i\}$. (Discrete / event-triggered relaxations: separate paper.)
+- **(A5) Active-set non-saturation.** On the closed-loop invariant set $\mathcal{M}$, $|\mathcal{N}_i^{\text{on}}(t)| < d$ for $\mu$-a.e. $t$, where $\mu$ is the invariant measure from §4. Equivalently, no agent is simultaneously safety-active against $d$ or more neighbours; freedom cone $F_i$ is non-trivial $\mu$-a.e. Holds generically when $\deg(\mathcal{G}) < d$; otherwise must be checked numerically per scenario.
 
-These four axioms are *all* the hypotheses. Lipschitz constraints, regularity of the closed loop, dwell-time bounds, and PE on the normalised regressor are *consequences* once the construction is properly framed.
+These six axioms (A1, A2, A2', A3', A4, A5) are *all* the hypotheses. Lipschitz constraints, regularity of the closed loop, and dwell-time bounds are *consequences*.
 
 ---
 
@@ -125,9 +127,17 @@ which is the unit test for the OSQP wrapper before scaling to $N \ge 3$.
 
 ### 2.4. Lemma 1 (well-posedness of the QP-resolvent)
 
-Under (A1)–(A4), the QP admits a unique solution Lipschitz in $(x, \hat\theta, e_i^{\text{pe}})$ and piecewise-affine on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$.
+Under (A1), (A2), (A2'), (A3'), (A4), (A5), the QP admits a unique solution that is *piecewise-affine* on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$ and *Lipschitz* in $(x, \hat\theta, e_i^{\text{pe}})$ on each stratum. The constraint Jacobian for agent $i$'s decision variable $u_i$ is $\hat\theta$-independent (the $\hat\theta_i / \hat\theta_j$ cross-coupling enters only as a linear shift in the RHS).
 
-*Sketch.* Strict convexity (objective is $2I$) + linear constraints with non-empty interior (by A3 + Lemma 5.1) + Hilbert projection theorem [Hilbert 1906; Riesz 1907]. Lipschitz: Hager (1979). Piecewise-affine: Robinson (1980). ∎
+*Sketch.* Strict convexity (objective Hessian $2I$) + linear constraints with non-empty interior (by A3' + Lemma 5.1) + Hilbert projection theorem [Hilbert 1906; Riesz 1907]. Lipschitz constant from Hager (1979) Theorem 3.1: with $G_i(t,x) \in \mathbb{R}^{|\mathcal{N}_i^{\text{on}}| \times d}$ the active-constraint Jacobian (rows $2(x_i - x_j)^\top$),
+$$
+L_{\text{QP}}(t,x) \;=\; \frac{1}{\sigma_{\min}(G_i(t,x))} \cdot \big(1 + \kappa_\Lambda \cdot |\mathcal{N}_i^{\text{on}}(t)|\big),
+$$
+where $\sigma_{\min}(G_i)$ is the smallest singular value of the active Jacobian. By (A5), $|\mathcal{N}_i^{\text{on}}| \le d - 1$ $\mu$-a.e., so $\sigma_{\min}(G_i) \ge 2 r_{\text{safe}}\, \sigma_{\min}^{\text{geom}}$ where $\sigma_{\min}^{\text{geom}} > 0$ is the *geometric configuration* constant (smallest singular value of the unit-direction matrix; bounded away from zero on $\mathcal{M}$ when no two active normals are collinear). Worst-case bound:
+$$
+L_{\text{QP}}^* \;:=\; \sup_{(t,x) \in \mathcal{M}} L_{\text{QP}}(t,x) \;\le\; \frac{1 + \kappa_\Lambda (d-1)}{2 r_{\text{safe}} \, \sigma_{\min}^{\text{geom}}}.
+$$
+Piecewise-affine on each stratum: Robinson (1980). Cross-stratum continuity follows from Lemma 5.6 (uniform dwell-time). ∎
 
 ---
 
@@ -148,11 +158,25 @@ Along closed-loop trajectories under §2,
 $$
 \dot V \;\le\; -\eta\, \sum_i \frac{\|x_i - z_i\|^2}{m_i^4} \;+\; \mathcal{O}(A_e^2)\;+\;\mathcal{O}\!\big(\textstyle\sup_i \|P_i(t)\|^2\big),
 $$
-with the explicit decay constant
+where the decay constant $\eta$ is computed in two steps.
+
+**Step (a): swapped-signal cancellation.** Differentiating $V_i$ and substituting the adaptive law $\dot{\hat\theta}_i = -(\gamma/m_i^2)(u_i^{\text{ref}})^\top e_i$ with $e_i := x_i - z_i$ and $\tilde\theta_i := \hat\theta_i - 1/\Lambda_i$ gives the Pomet-Praly (1992) cancellation
 $$
-\eta \;\ge\; \Lambda_{\min}\, K_T \;-\; 2\, K_F\, \deg(\mathcal{G})\, \kappa_\Lambda^2,
+\dot V_i \;=\; \underbrace{\frac{\Lambda_i}{m_i^2} e_i^\top \tilde\theta_i u_i^{\text{ref}}}_{\text{cross}} \;-\; \underbrace{\frac{\Lambda_i}{m_i^2} \tilde\theta_i (u_i^{\text{ref}})^\top e_i}_{\text{cross}} \;+\; \underbrace{\frac{\Lambda_i}{m_i^2} e_i^\top (\tilde e_i^{\text{pe}} + \delta_i^{\text{QP}})}_{\text{perturbation}} \;-\; \frac{\|e_i\|^2}{m_i^4}\,(u_i^{\text{ref}})^\top \dot u_i^{\text{ref}}.
 $$
-positive whenever the design satisfies the **gain condition** $K_T > 2 (K_F/\Lambda_{\min}) \deg(\mathcal{G})\, \kappa_\Lambda^2$. The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18, the modern formalisation as ISS due to Sontag 1989]. The QP-projection perturbation $\delta_i^{\text{QP}}$ is bounded by $L_{\text{QP}}\, (\|x_i - z_i\|/m_i + \delta_{ij}(t))$ with $L_{\text{QP}} = \kappa_\Lambda \deg(\mathcal{G})$ via the Hager (1979) Lipschitz bound; Young's inequality with weight $\eta/2$ absorbs the $\|x_i - z_i\|$ term into the decay.
+The two cross terms cancel. The decay comes from the formation tracking: augment $V$ with $V_{\text{form}} := \tfrac12 \xi^\top \xi$ where $\xi_i := z_i - t_i$. Then $\dot\xi = -(K_T I_N + K_F L_{\mathcal{G}}) \otimes I_d \cdot \xi - \dot t$, with $L_{\mathcal{G}}$ the graph Laplacian.
+
+**Step (b): formation Laplacian coercivity.** The eigenvalues of $K_T I_N + K_F L_{\mathcal{G}}$ are $\{K_T + K_F\, \lambda_k(L_{\mathcal{G}})\}_{k=1}^N$, with $\lambda_1(L_{\mathcal{G}}) = 0$ (connected graph). The smallest eigenvalue is $K_T$. Hence $\xi^\top (K_T I + K_F L) \xi \ge K_T \|\xi\|^2$, and $\dot V_{\text{form}} \le -K_T \|\xi\|^2 + \|\xi\| \cdot u_{\max}^{\text{ref}}$.
+
+**Step (c): combine.** With $V := \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ and Young's inequality with weight $\tfrac12$ on the QP-projection cross terms (using the Hager bound from §2.4):
+$$
+\dot V \;\le\; -\eta\, \Big( \sum_i \tfrac{\|e_i\|^2}{m_i^4} + \|\xi\|^2 \Big) + \mathcal{O}(A_e^2) + \mathcal{O}(\sup_i \|P_i(t)\|^2) + \mathcal{O}(M^{-1}),
+$$
+with the **closed-form lower bound**
+$$
+\boxed{\;\eta \;\ge\; \min\!\Big( \tfrac12 K_T,\; \tfrac{\Lambda_{\min}}{2} - \tfrac12 L_{\text{QP}}^2 / K_T \Big),\;}
+$$
+where $L_{\text{QP}}$ is from Lemma 1 (§2.4 below). The **gain condition** for $\eta > 0$ is $K_T \cdot \Lambda_{\min} > L_{\text{QP}}^2$, satisfiable by tuning $K_T$ given the QP Lipschitz constant and the prior tightness $\kappa_\Lambda$. The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18; ISS form by Sontag 1989]. The slack-induced safety violation $\mathcal{O}(M^{-1})$ is absorbed into the (A3') margin $\zeta$.
 
 *Sketch.* Swapped-signal cancellation (Morse 1990 / Pomet-Praly 1992) on the unperturbed MRAC. The QP-projection correction $\delta_i^{\text{QP}}$ and excitation injection $\tilde e_i^{\text{pe}}$ contribute bounded perturbation terms; Young's inequality + Krasovskii ultimate-boundedness theorem closes the chain. The $\mathcal{O}(\sup_i \|P_i(t)\|^2)$ term vanishes asymptotically by Anderson (1985). ∎
 
@@ -160,7 +184,7 @@ positive whenever the design satisfies the **gain condition** $K_T > 2 (K_F/\Lam
 
 ## 4. Birkhoff-Rayleigh identifiability gain
 
-Trajectories converge to a compact attractor $\mathcal{M}$ on which the closed-loop dynamics are governed by the Crandall-Liggett semigroup. By Krylov-Bogolyubov (1937) extended to maximal monotone semigroups [Brezis 1973 §3.3], $\mathcal{M}$ admits an invariant probability measure $\mu$.
+Lift the closed-loop state to the augmented space $(x, m, \hat\theta) \in \mathbb{R}^{Nd} \times \{0,1\}^{|\mathcal{E}|} \times [\theta_{\min}, \theta_{\max}]^N$, where $m$ indexes the hysteresis mode (which pairs are active). Between mode transitions the flow is generated by the maximal monotone operator $A(t, x, m)$; transitions are deterministic event-triggers driven by $c_{ij}$ crossing the hysteresis thresholds. This is a **piecewise-deterministic Markov process** in the sense of Davis (1984). Trajectories converge to a compact attractor $\mathcal{M}$ on the augmented space (compact by UUB Lemma 5.3 for $x$, finite for $m$, projection-bounded for $\hat\theta$). By Davis (1984) Theorem 5.5 + Costa-Dufour (2013) for state-constrained PDMPs, $\mathcal{M}$ admits an invariant probability measure $\mu$ (the Krylov-Bogolyubov 1937 argument lifted to PDMPs). Brezis (1973) §3.3 covers only the autonomous, hysteresis-free case and is *not* sufficient here; the PDMP route is the correct modern reference.
 
 The **scalar identifiability gain** is the $\mu$-expectation of the Rayleigh quotient of the freedom-cone projector against the open-loop regressor [Rayleigh 1877, *Theory of Sound* §IV]:
 $$
@@ -183,7 +207,7 @@ The bound is *non-degenerate* iff $\bar\rho_i > 0$, equivalently iff the open-lo
 
 ## 5. Theorem (three-sentence Bourbaki form)
 
-> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), (A3'), and **continuous-time neighbour broadcast (A4)**, and the open-loop PE hypothesis on $\{u_i^{\text{ref}}\}$, the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i \in [\beta_1\,\lambda_{\min}^+(\bar P_i),\, \beta_1]$, where $\bar P_i$ is the $\mu$-time-averaged freedom-cone projector [Birkhoff 1931 + Rayleigh 1877], provided the non-degeneracy $\bar\rho_i > 0$.
+> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), **(A2') closed-loop PE**, (A3'), **(A4) continuous broadcast**, and **(A5) active-set non-saturation**, and the open-loop PE hypothesis on $\{u_i^{\text{ref}}\}$, the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i \in [\beta_1\,\lambda_{\min}^+(\bar P_i),\, \beta_1]$, where $\bar P_i$ is the $\mu$-time-averaged freedom-cone projector [Birkhoff 1931 + Rayleigh 1877], provided the non-degeneracy $\bar\rho_i > 0$.
 
 Three sentences. Three numbered conclusions. Fifteen classical references.
 
@@ -203,11 +227,11 @@ where $D_{\max}$ bounds $\|x_i - x_j\|$ from (A2) + Lemma 5.3. Tightening the co
 
 - **Lemma 5.4 (resolvent well-posedness, Brezis 1973 + Crandall-Liggett 1971).** As above (Lemma 1). The QP is the resolvent $J_h$ at step $h \to 0^+$. Crandall-Liggett's exponential formula [1971] gives the continuous-time semigroup. Brezis (1973) Theorem 4.2 gives existence, uniqueness, and continuous dependence.
 
-- **Lemma 5.5 (Birkhoff-Rayleigh identifiability gain, Birkhoff 1931 + Rayleigh 1877 + Krylov-Bogolyubov 1937).** As above (Lemma 4). The Krylov-Bogolyubov extension to maximal monotone semigroups is in Brezis (1973) §3.3.
+- **Lemma 5.5 (Birkhoff-Rayleigh identifiability gain, Birkhoff 1931 + Rayleigh 1877 + Krylov-Bogolyubov 1937 + Davis 1984).** As above (Lemma 4). The Krylov-Bogolyubov argument lifts to the hysteresis-augmented PDMP via Davis (1984) Thm 5.5 and Costa-Dufour (2013) for state-constrained PDMPs. Non-degeneracy $\bar\rho_i > 0$ requires (A2') closed-loop PE *and* (A5) active-set non-saturation.
 
-- **Lemma 5.6 (uniform multi-surface dwell-time, Hager 1979 + Liberzon 2003).** Under the hysteresis thresholds $(\varepsilon, 2\varepsilon)$ and the QP Lipschitz constant $L_u = L_{\text{QP}}$ from Lemma 1, the inter-event time across all $\binom{N}{2}$ pairs is uniformly bounded below by
-$$\tau_d \;\ge\; \frac{\varepsilon}{L_u \cdot \max_{ij} \|2(x_i - x_j)\|} \;\ge\; \frac{\varepsilon}{L_{\text{QP}}\, D_{\max}} \;>\; 0.$$
-Hence Zeno is excluded for the multi-pair coupled system, not only pair-wise. Proof: between events, $|c_{ij}|$ changes at rate $\le L_u \cdot \|2(x_i - x_j)\|$; crossing the hysteresis band $(\varepsilon, 2\varepsilon)$ takes at least $\varepsilon / (L_u D_{\max})$. ∎
+- **Lemma 5.6 (uniform multi-surface dwell-time, Hager 1979 + Liberzon 2003).** Under the hysteresis thresholds $(\varepsilon, 2\varepsilon)$ and the QP Lipschitz constant $L_{\text{QP}}^*$ from Lemma 1, the inter-event time across all $\binom{N}{2}$ pairs is uniformly bounded below by
+$$\tau_d \;\ge\; \frac{\varepsilon}{L_{\text{eff}} \cdot D_{\max}} \;>\; 0, \qquad L_{\text{eff}} := L_{\text{QP}}^* + \alpha\, \theta_{\max}\, \tfrac{\gamma}{\theta_{\min}^2}\, u_{\max}^{\text{ref}}\, R_{\text{UUB}},$$
+where the second term in $L_{\text{eff}}$ accounts for the contribution from $\dot{\hat\theta}_i$ entering through the gauge-fixed coefficient $\alpha \hat\theta_i h_{ij}$ in $c_{ij}$ (chain rule on the adaptive law). *Proof:* Between events, $|\dot c_{ij}| \le L_{\text{QP}}^* \cdot \|2(x_i-x_j)\| + \alpha \cdot |\dot{\hat\theta}_i| \cdot |h_{ij}|$; substituting the adaptive-law bound $|\dot{\hat\theta}_i| \le (\gamma/\theta_{\min}^2) u_{\max}^{\text{ref}} \|e_i\|$ with $\|e_i\| \le R_{\text{UUB}}$ and $|h_{ij}| \le D_{\max}^2$ gives the $L_{\text{eff}}$ form. Crossing the hysteresis band $(\varepsilon, 2\varepsilon)$ takes at least $\varepsilon / (L_{\text{eff}} D_{\max})$. Hence Zeno is excluded for the multi-pair coupled system. ∎
 
 The theorem is an immediate consequence of these five lemmas, each at most one classical reference deep.
 
@@ -225,7 +249,7 @@ Convergence rate factor in the constraint-normal direction: $1 - \bar\mu$. Tange
 
 ### 7.2. $N=4$, $d=2$, cross-swap
 
-Agents at $(\pm 3, \pm 3)$ swapping diagonally. Three pairs per agent, each active for fraction $\bar\mu/3$ of the cycle (symmetric idealization; relax for asymmetric activity). For agent 1 going $(-3,-3)\to(3,3)$:
+Agents at $(\pm 3, \pm 3)$ swapping diagonally. **Symmetry assumption (numerical-only):** the invariant measure $\mu$ is approximately symmetric under the dihedral $D_4$ action, hence each of the three pairs per agent is active for fraction $\bar\mu/3$ of the cycle. This is an *assumption on $\mu$*, not derived from the dynamics; verified numerically in §7.3. Asymmetric extensions would require resolving the actual $\mu$ via Davis (1984) PDMP simulation. For agent 1 going $(-3,-3)\to(3,3)$:
 - vs head-on agent 3: $F_1 \perp (1,1)/\sqrt{2}$, projector $\tfrac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix}$.
 - vs perpendicular agents 2, 4: projectors $\mathrm{diag}(0,1)$ and $\mathrm{diag}(1,0)$ respectively.
 
@@ -282,6 +306,26 @@ The contribution is the **engineering observation** that these classical objects
 
 We do not claim mathematical novelty. We claim a clean composition of classical objects in a previously-unmade engineering synthesis.
 
+### Robustifier choice (projection vs $\sigma$-mod vs dead-zone)
+
+Three classical robustifiers exist for adaptive parameter laws: Krstić-Kanellakopoulos-Kokotović (1995) smooth projection, Ioannou-Kokotović (1983) $\sigma$-modification, and Egardt (1979) dead-zone. We pick **projection** because the QP feasibility argument requires a hard bound $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ with $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$; $\sigma$-mod produces a soft attractor at $\hat\theta = 0$ that conflicts with this bound, and dead-zone introduces a region where $\dot{\hat\theta}_i = 0$ that breaks the Anderson 1985 PE-decay rate on $P_i(t)$.
+
+### Norm conventions
+
+Saturation in §2 is $\|u\|_\infty \le u_{\max}$ (matches per-channel actuator limits). Lyapunov in §3 uses $\|x_i - z_i\|_2$. The $\sqrt{d}$ factor in $\delta_{ij}(t)$ (Lemma 5.2) is the conversion. Single conversion table:
+
+| Quantity | Norm | Why |
+|---|---|---|
+| $u_i^{\text{safe}}$, $u_i^{\text{ref}}$, $u_i^{\text{AC}}$ | $\infty$ | per-channel saturation |
+| $x_i - z_i$, $\hat\theta_i - 1/\Lambda_i$ | 2 | Lyapunov |
+| $u_i^{\text{ref}}$ in $m_i^2 := 1 + \|u_i^{\text{ref}}\|^2$ | 2 | swapped-signal normalisation |
+
+When converting between them in proofs, $\|u\|_2 \le \sqrt{d}\,\|u\|_\infty$ and $\|u\|_\infty \le \|u\|_2$. The $\sqrt{d}$ factors are tracked explicitly in Lemma 5.2 and §7.3.
+
+### Position vs L1-adaptive
+
+L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot independent of the adaptation rate $\gamma$, at the cost of a low-pass filter that limits identifiability. Our construction's transient is $V(0)\,e^{-\eta t}$, dependent on $V(0)$ but with a closed-form $\eta$ inequality (Lemma 2). The trade is reversed: we keep PE for identification (Birkhoff-Rayleigh $\bar\rho_i$) at the cost of a transient bounded by initial conditions. For aerospace deployment where transient is the safety-critical quantity, L1 is preferable; for multi-agent identification where parameter convergence is the deliverable, our construction is preferable.
+
 ### Open questions
 
 1. **Optimal excitation $e_i^{\text{pe}}$.** Sinusoidal is convenient. State-feedback rules maximising $\bar\rho_i$ are open.
@@ -317,6 +361,8 @@ We do not claim mathematical novelty. We claim a clean composition of classical 
 
 **Post-1985 / modern context:**
 - Anderson, B. D. O. (1985). "Exponential stability of linear equations arising in adaptive identification." *IEEE TAC* 22(1), 83–88.
+- Costa, O. L. V., Dufour, F. (2013). *Continuous Average Control of Piecewise Deterministic Markov Processes.* Springer.
+- Davis, M. H. A. (1984). "Piecewise-deterministic Markov processes: a general class of non-diffusion stochastic models." *J. Royal Stat. Soc. B* 46(3), 353–388.
 - Ames, A. D., Xu, X., Grizzle, J. W. (2014). CBF + slack variable.
 - Autenrieb, J., Annaswamy, A. M. (2023). [arXiv 2309.05533] in-house adaptive CBF.
 - Cohen, M., Belta, C. (2020, 2022, 2023). [arXiv 2002.04577, 2203.01999, 2303.04241] adaptive CBF lineage.
@@ -332,7 +378,20 @@ We do not claim mathematical novelty. We claim a clean composition of classical 
 
 ---
 
-## 10. Diff from v2 (and v1)
+## 10. Diff v5 → v6 (modern-panel close-out)
+
+| v5 | v6 | Driver |
+|---|---|---|
+| $\eta \ge \Lambda_{\min} K_T - 2 K_F \deg(\mathcal{G}) \kappa_\Lambda^2$ (linear, wrong) | $\eta \ge \min(\tfrac12 K_T, \tfrac{\Lambda_{\min}}{2} - L_{\text{QP}}^2/(2 K_T))$ via Pomet-Praly + formation-Laplacian coercivity | Krstić: original form was structurally wrong |
+| (H5) PE-on-closed-loop hidden | (A2') closed-loop PE on $\dot t_i$ stated as axiom | Annaswamy: hidden hypothesis |
+| Krylov-Bogolyubov via Brezis 1973 §3.3 (insufficient for hysteresis) | Davis 1984 PDMP + Costa-Dufour 2013 | Tomlin: hysteresis breaks autonomous-semigroup framing |
+| $L_{\text{QP}} = \kappa_\Lambda \deg(\mathcal{G})$ (hand-waved) | $L_{\text{QP}}^* \le (1 + \kappa_\Lambda(d-1)) / (2 r_{\text{safe}} \sigma_{\min}^{\text{geom}})$ via Hager 1979 Thm 3.1 | Tao: needs the actual theorem statement |
+| Active-set non-saturation implicit | (A5) $|\mathcal{N}_i^{\text{on}}| < d$ $\mu$-a.e. stated explicitly | Ames: required for $\bar\rho_i > 0$ |
+| Dwell-time $\tau_d \ge \varepsilon/(L_u D_{\max})$ missing $\dot{\hat\theta}$ term | $L_{\text{eff}} = L_{\text{QP}}^* + \alpha \theta_{\max} (\gamma/\theta_{\min}^2) u_{\max}^{\text{ref}} R_{\text{UUB}}$ | Tomlin: chain rule on adaptive law |
+| $D_{\max}$ derivation circular | $D_{\max} := 2(\sup_i\|z_i\|_\infty + R_{\text{UUB}}) + r_{\text{safe}}$ with $R_{\text{UUB}} = \sqrt{2 V(0)}$ | Tao: chain non-circularity |
+| §7.2 symmetric activity stated as fact | Stated as assumption on $\mu$ | Modern panel: not derived |
+
+## 11. Diff from v2 (and v1)
 
 | v2 (post-OG round 2) | v3 (this version) | Driver |
 |---|---|---|
