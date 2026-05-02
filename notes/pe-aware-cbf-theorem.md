@@ -1,6 +1,6 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v11, regex-cleanup pass (external §-citations restored after the v9→v10 over-bump; §1→§2 in (A2'); $Q$ → $Q^{\text{KB}}$ consistency in (A2')). Continuous-time simulation only; no hardware claims.
+**Status:** v12, Nagumo (1942) added as the foundational viability-theorem citation for the safety filter. Continuous-time simulation only; no hardware claims.
 **Length target:** IEEE-LCSS 8-page limit; current draft fits ~6.5 pages with slack.
 
 **Units convention.** Position $x_i \in \mathbb{R}^d$ in $[\text{m}]$, time $t$ in $[\text{s}]$. Control $u$ in $[\text{m}/\text{s}]$ (single-integrator $\dot x = \Lambda u$). Gains: $K_T, K_F, \alpha$ in $[1/\text{s}]$; $\Lambda$ dimensionless; $\hat\theta_i, \kappa_\Lambda$ dimensionless; $\gamma$ in $[1/(\text{m}^2 \cdot \text{s})]$ for the normalised adaptive law. $L_{\text{QP}}^*$ dimensionless (data-to-solution Lipschitz on the same units). All numerical inequalities in §4 are in normalised units; the products $K_T \Lambda_{\min}$ and $\bar\mu^2 L_{\text{QP}}^{*\,2} K_T^{-1}$ both in $[1/\text{s}]$ as required for $\eta$ to be a rate.
@@ -9,7 +9,7 @@
 
 ## Abstract
 
-For a network of $N$ single-integrator agents with unknown control effectiveness $\Lambda_i$, we identify the convergence rate of the parameter estimate $\hat\theta_i \to 1/\Lambda_i$ under a distributed CBF safety filter as the **trace of the constrained Fisher information matrix** on a Whitney-stratified Fadell-Neuwirth configuration space - equivalently, the inverse of the corresponding scalar Cramér-Rao bound on $\Lambda_i^{-1}$. The freedom-cone projection - the orthogonal complement of the active CBF normals - extracts the identifiable component of the open-loop reference; its time-averaged second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information of $1/\Lambda_i$ (Rao 1945, §6), and its trace gives the exponential rate. The construction composes eight pre-1985 classical objects (maximal monotone resolvent, Noether's first theorem, Hilbert-Courant min-max, Krasovskii ultimate boundedness, Krasnosel'skii-Pokrovskii hysteresis operator, Birkhoff ergodic theorem, Klein $O(d)$-invariance, Rao constrained Fisher information). Continuous-time simulation; the QP-resolvent at $h_{\text{outer}} = 5$ ms with OSQP is real-time feasible up to $N \approx 50$ agents.
+For a network of $N$ single-integrator agents with unknown control effectiveness $\Lambda_i$, we identify the convergence rate of the parameter estimate $\hat\theta_i \to 1/\Lambda_i$ under a distributed CBF safety filter as the **trace of the constrained Fisher information matrix** on a Whitney-stratified Fadell-Neuwirth configuration space - equivalently, the inverse of the corresponding scalar Cramér-Rao bound on $\Lambda_i^{-1}$. The freedom-cone projection - the orthogonal complement of the active CBF normals - extracts the identifiable component of the open-loop reference; its time-averaged second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information of $1/\Lambda_i$ (Rao 1945, §6), and its trace gives the exponential rate. The construction composes nine pre-1985 classical objects (Nagumo's viability theorem, maximal monotone resolvent, Noether's first theorem, Hilbert-Courant min-max, Krasovskii ultimate boundedness, Krasnosel'skii-Pokrovskii hysteresis operator, Birkhoff ergodic theorem, Klein $O(d)$-invariance, Rao constrained Fisher information). Continuous-time simulation; the QP-resolvent at $h_{\text{outer}} = 5$ ms with OSQP is real-time feasible up to $N \approx 50$ agents.
 
 ## 1. Problem statement
 
@@ -83,7 +83,7 @@ For each $\{i, j\}$ with $j \in \mathcal{N}_i$, the time-varying CBF constraint,
 $$
 c_{ij}(u_i; x, \hat\theta) \;:=\; 2(x_i - x_j)^\top u_i \;-\; 2\,\frac{\hat\theta_i}{\hat\theta_j}\,(x_i - x_j)^\top u_j^{\text{AC}} \;+\; \alpha\,\hat\theta_i\, h_{ij}(x) \;\ge\; \delta_{ij}(t),
 $$
-where $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big) (\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}})$ is the time-varying tightening from Lemma 5.2 (vanishing as $P_i(t) \to 0$), and $\alpha > 0$ is the linear class-$\mathcal{K}$ gain in the ZCBF condition $\dot h_{ij} + \alpha h_{ij} \ge 0$ [Ames-Xu-Grizzle 2014 eq. 14].
+where $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big) (\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}})$ is the time-varying tightening from Lemma 5.2 (vanishing as $P_i(t) \to 0$), and $\alpha > 0$ is the linear class-$\mathcal{K}$ gain in the ZCBF condition $\dot h_{ij} + \alpha h_{ij} \ge 0$. The ZCBF formulation is the modern rediscovery [Ames-Xu-Grizzle 2014 eq. 14] of the **Nagumo (1942) viability theorem**: a closed set $K = \{h \ge 0\}$ is forward-invariant under $\dot x = f(x)$ iff $f(x)$ lies in the contingent cone $T_K(x)$ for all $x \in \partial K$; the class-$\mathcal{K}$ relaxation $\dot h \ge -\alpha h$ is its asymptotic-set-invariance generalisation. Every safety-filter argument in this paper is a corollary of Nagumo (1942).
 
 The decision-variable coefficient is $2(x_i - x_j)$ - independent of $\hat\theta$. The constraint Jacobian is $\hat\theta$-independent. The QP Hessian (from the squared objective) is $2I$. The solver sees no $\hat\theta$-dependent matrix structure; only RHS coefficients vary, and bounded by $\theta_{\max}/\theta_{\min}$ [Wright 1997 §11].
 
@@ -242,7 +242,7 @@ $$
 
 ## 6. Theorem (three-sentence Bourbaki form)
 
-> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), **(A2') closed-loop PE**, (A3'), **(A4) continuous broadcast**, **(A5) active-set non-saturation**, and (A5') (vacuous for $d=2$), the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i = \gamma \cdot \mathrm{tr}(Q_i)$, where $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold [Rao 1945 + Klein 1872 + Birkhoff 1931], provided the non-degeneracy $Q_i \ne 0$.
+> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), **(A2') closed-loop PE**, (A3'), **(A4) continuous broadcast**, **(A5) active-set non-saturation**, and (A5') (vacuous for $d=2$), the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by Nagumo's viability theorem [Nagumo 1942] / its asymptotic-invariance generalisation under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i = \gamma \cdot \mathrm{tr}(Q_i)$, where $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold [Rao 1945 + Klein 1872 + Birkhoff 1931], provided the non-degeneracy $Q_i \ne 0$.
 
 Three sentences. Three numbered conclusions. Lineage spans 1838 (Liouville) - 2020 (OSQP).
 
@@ -252,7 +252,7 @@ Three sentences. Three numbered conclusions. Lineage spans 1838 (Liouville) - 20
 
 ## 7. Proof outline (six lemmas, all classical)
 
-- **Lemma 5.1 (forward invariance of the safe set, Hilbert + Krasovskii).** The QP enforces $\dot h_{ij} + \alpha h_{ij} \ge 0$. By comparison-lemma + Gronwall (1919), $h_{ij}(t) \ge h_{ij}(0)\,e^{-\alpha t} > 0$.
+- **Lemma 5.1 (forward invariance of the safe set, Nagumo + Hilbert + Krasovskii).** The QP enforces the asymptotic-invariance condition $\dot h_{ij} + \alpha h_{ij} \ge 0$, which is the class-$\mathcal{K}$ relaxation of Nagumo's (1942) viability condition $f(x) \in T_K(x)$ on $\partial K$. By comparison-lemma + Gronwall (1919), $h_{ij}(t) \ge h_{ij}(0)\,e^{-\alpha t} > 0$.
 
 - **Lemma 5.2 (estimation-error tolerance with vanishing conservativeness, Kalman-Bucy + Anderson).** Define $\tilde\Lambda_i := \Lambda_i - 1/\hat\theta_i$, with $|\tilde\Lambda_i|^2 \le P_i(t) \cdot \Lambda_i^2/\hat\theta_i^2 \le P_i(t)/\theta_{\min}^2$. The constraint discrepancy
 $$|c_{ij}^{\text{true}} - c_{ij}| \le 2\,D_{\max}\,(\sqrt{P_i(t)}/\theta_{\min})\,(\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}}) =: \delta_{ij}(t),$$
@@ -328,20 +328,21 @@ Each figure includes a saturation-active subpanel (1 if $\|u_i^{\text{safe}}\|_\
 
 ### Contribution
 
-Eight classical objects compose to give a multi-agent adaptive safety-critical controller with quantifiable identifiability-vs-safety trade-off:
+Nine classical objects compose to give a multi-agent adaptive safety-critical controller with quantifiable identifiability-vs-safety trade-off:
 
-1. Maximal monotone operator $A(t,x,m)$ from the time-varying hysteresis-graded feasible set [Brezis 1973].
-2. Crandall-Liggett exponential formula generating the closed-loop semigroup [1971]; the QP is the Yosida resolvent.
-3. **Noether's first theorem (1918)** on the $G_\lambda : (e, \tilde\theta) \mapsto (\lambda^{-1} e, \lambda \tilde\theta)$ symmetry: gives the swapped-signal cancellation.
-4. **Hilbert-Courant min-max (1924)** on the formation Laplacian $K_T I + K_F L_{\mathcal{G}}$: gives the gain condition $\eta \ge K_T/2$.
-5. $N$ parallel Kalman-Bucy filters tracking $\Lambda_i$ [Kalman-Bucy 1961]; Anderson PE-driven covariance decay [1985].
-6. Krasovskii ultimate-boundedness for the swapped-signal Lyapunov [1959 §14.2].
-7. Krasnosel'skii-Pokrovskii hysteresis operator [1989] / Davis PDMP [1984] giving the closed-loop invariant measure $\mu$.
-8. **Klein-Erlangen invariant (1872)** identifiability gain $\bar\rho_i = \mathrm{tr}(Q_i)$ as the trace of the $O(d)$-equivariant joint second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u^{\text{ref}})(\mathrm{Proj}_{F_i} u^{\text{ref}})^\top]$.
+1. **Nagumo's viability theorem (1942)**: forward invariance of $\{h \ge 0\}$ iff the contingent-cone condition; class-$\mathcal{K}$ relaxation gives the asymptotic-set-invariance / ZCBF formulation. *Every safety-filter argument here is a corollary of Nagumo (1942); Ames-Xu-Grizzle (2014) is the modern rediscovery.*
+2. Maximal monotone operator $A(t,x,m)$ from the time-varying hysteresis-graded feasible set [Brezis 1973].
+3. Crandall-Liggett exponential formula generating the closed-loop semigroup [1971]; the QP is the Yosida resolvent.
+4. **Noether's first theorem (1918)** on the $G_\lambda : (e, \tilde\theta) \mapsto (\lambda^{-1} e, \lambda \tilde\theta)$ symmetry: gives the swapped-signal cancellation.
+5. **Hilbert-Courant min-max (1924)** on the formation Laplacian $K_T I + K_F L_{\mathcal{G}}$: gives the gain condition $\eta \ge K_T/2$.
+6. $N$ parallel Kalman-Bucy filters tracking $\Lambda_i$ [Kalman-Bucy 1961]; Anderson PE-driven covariance decay [1985].
+7. Krasovskii ultimate-boundedness for the swapped-signal Lyapunov [1959 §14.2].
+8. Krasnosel'skii-Pokrovskii hysteresis operator [1989] / Davis PDMP [1984] giving the closed-loop invariant measure $\mu$.
+9. **Klein-Erlangen invariant (1872) + Rao constrained Fisher information (1945)** identifiability gain $\bar\rho_i = \mathrm{tr}(Q_i)$ as the trace of the $O(d)$-equivariant joint second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u^{\text{ref}})(\mathrm{Proj}_{F_i} u^{\text{ref}})^\top]$.
 
-Plus Klein-Erlangen gauge fixing [1872] for QP pre-conditioning. The construction is, classically: *Lyapunov's second method (1892) on a Noether-symmetric Lagrangian, with safety enforced via Hilbert projection (1906) and identifiability quantified via a Klein-invariant Rayleigh quotient (1877). Closed-loop existence by Crandall-Liggett (1971); invariant measure by Krasnosel'skii-Pokrovskii (1989).*
+Plus Klein-Erlangen gauge fixing [1872] for QP pre-conditioning. The construction is, classically: *Nagumo's viability (1942) + Lyapunov's second method (1892) on a Noether-symmetric Lagrangian, with safety enforced via Hilbert projection (1906) and identifiability quantified via the Klein-invariant constrained Cramér-Rao Fisher matrix of Rao (1945). Closed-loop existence by Crandall-Liggett (1971); invariant measure by Krasnosel'skii-Pokrovskii (1989).*
 
-The contribution is the **engineering observation** that these eight classical objects compose. The mathematical machinery is pre-1985 in its entirety. **Not a mathematical novelty paper.** A control-design observation paper.
+The contribution is the **engineering observation** that these nine classical objects compose. The mathematical machinery is pre-1985 in its entirety. **Not a mathematical novelty paper.** A control-design observation paper.
 
 ### Position vs prior work
 
@@ -403,6 +404,7 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 - LaSalle, J. P. (1960). "Some extensions of Liapunov's second method." *IRE Trans. Circuit Theory* 7, 520–527.
 - Lyapunov, A. M. (1892). *The General Problem of the Stability of Motion.* (Eng. transl. 1992.)
 - Morse, A. S. (1990) / Pomet, J.-B., Praly, L. (1992). Swapped-signal Lyapunov for normalised adaptive laws.
+- **Nagumo, M. (1942). "Über die Lage der Integralkurven gewöhnlicher Differentialgleichungen." *Proc. Phys.-Math. Soc. Japan* 24, 551–559 (the viability theorem; foundational result for forward invariance, predates Aubin and the modern CBF literature by 70+ years).**
 - Noether, E. (1918). "Invariante Variationsprobleme." *Nachr. Königl. Ges. Wiss. Göttingen, Math.-Phys. Kl.* 235–257 (first theorem: one-parameter symmetry → conserved quantity).
 - Hilbert, D., Courant, R. (1924). *Methoden der mathematischen Physik I,* §I.3 (min-max characterisation of eigenvalues).
 - Rao, C. R. (1945). "Information and the accuracy attainable in the estimation of statistical parameters." *Bull. Calcutta Math. Soc.* 37, 81–91 (Cramér-Rao bound; constrained Fisher information §6).
