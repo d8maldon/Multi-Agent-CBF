@@ -1,13 +1,15 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v9, LCSS-form rewrite (post Krstić / Borrelli / Lavretsky controls audit). Continuous-time simulation only; no hardware claims.
+**Status:** v10, exposition cleanup (renumbering, Cramér-Rao reciprocal, units convention, A5' in theorem). Continuous-time simulation only; no hardware claims.
 **Length target:** IEEE-LCSS 8-page limit; current draft fits ~6.5 pages with slack.
+
+**Units convention.** Position $x_i \in \mathbb{R}^d$ in $[\text{m}]$, time $t$ in $[\text{s}]$. Control $u$ in $[\text{m}/\text{s}]$ (single-integrator $\dot x = \Lambda u$). Gains: $K_T, K_F, \alpha$ in $[1/\text{s}]$; $\Lambda$ dimensionless; $\hat\theta_i, \kappa_\Lambda$ dimensionless; $\gamma$ in $[1/(\text{m}^2 \cdot \text{s})]$ for the normalised adaptive law. $L_{\text{QP}}^*$ dimensionless (data-to-solution Lipschitz on the same units). All numerical inequalities in §4 are in normalised units; the products $K_T \Lambda_{\min}$ and $\bar\mu^2 L_{\text{QP}}^{*\,2} K_T^{-1}$ both in $[1/\text{s}]$ as required for $\eta$ to be a rate.
 
 ---
 
 ## Abstract
 
-For a network of $N$ single-integrator agents with unknown control effectiveness $\Lambda_i$, we identify the convergence rate of the parameter estimate $\hat\theta_i \to 1/\Lambda_i$ under a distributed CBF safety filter as the **constrained Cramér-Rao bound on a Whitney-stratified Fadell-Neuwirth configuration space**. The freedom-cone projection - the orthogonal complement of the active CBF normals - extracts the identifiable component of the open-loop reference; its time-averaged second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information of $1/\Lambda_i$, and its trace gives the exponential rate. The construction composes eight pre-1985 classical objects (maximal monotone resolvent, Noether's first theorem, Hilbert-Courant min-max, Krasovskii ultimate boundedness, Krasnosel'skii-Pokrovskii hysteresis operator, Birkhoff ergodic theorem, Klein $O(d)$-invariance, Rao constrained Fisher information). Continuous-time simulation; the QP-resolvent at $h_{\text{outer}} = 5$ ms with OSQP is real-time feasible up to $N \approx 50$ agents.
+For a network of $N$ single-integrator agents with unknown control effectiveness $\Lambda_i$, we identify the convergence rate of the parameter estimate $\hat\theta_i \to 1/\Lambda_i$ under a distributed CBF safety filter as the **trace of the constrained Fisher information matrix** on a Whitney-stratified Fadell-Neuwirth configuration space - equivalently, the inverse of the corresponding scalar Cramér-Rao bound on $\Lambda_i^{-1}$. The freedom-cone projection - the orthogonal complement of the active CBF normals - extracts the identifiable component of the open-loop reference; its time-averaged second moment $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information of $1/\Lambda_i$ (Rao 1945, §7), and its trace gives the exponential rate. The construction composes eight pre-1985 classical objects (maximal monotone resolvent, Noether's first theorem, Hilbert-Courant min-max, Krasovskii ultimate boundedness, Krasnosel'skii-Pokrovskii hysteresis operator, Birkhoff ergodic theorem, Klein $O(d)$-invariance, Rao constrained Fisher information). Continuous-time simulation; the QP-resolvent at $h_{\text{outer}} = 5$ ms with OSQP is real-time feasible up to $N \approx 50$ agents.
 
 ## 1. Problem statement
 
@@ -40,19 +42,19 @@ A team of $N$ agents must reach a target formation $\{t_i\}_{i=1}^N$ in $\mathbb
 
 ## Axioms
 
-- **(A1) Bounded admissible parameter set.** $\Lambda_i \in [\Lambda_{\min}, 1]$, $\Lambda_{\min} > 0$, time-invariant. Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ enforced via the Krstić-Kanellakopoulos-Kokotović (1995) smooth projection. Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$ for the QP to remain feasible (see §6).
+- **(A1) Bounded admissible parameter set.** $\Lambda_i \in [\Lambda_{\min}, 1]$, $\Lambda_{\min} > 0$, time-invariant. Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ enforced via the Krstić-Kanellakopoulos-Kokotović (1995) smooth projection. Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$ for the QP to remain feasible (see §7).
 - **(A2) Bounded admissible reference and connected graph.** $\{z_i, \dot z_i, t_i, \dot t_i\}$ uniformly bounded by $u_{\max}^{\text{ref}}$; $\mathcal{G}$ connected. Define $D_{\max} := 2\big(\sup_i \|z_i\|_\infty + R_{\text{UUB}}\big) + r_{\text{safe}}$, where $R_{\text{UUB}} = \sqrt{2 V(0)}$ is the UUB radius from Lemma 5.3 (the chain $D_{\max}$-needs-UUB is non-circular: $V(0)$ is a *datum*, not a closed-loop quantity).
 - **(A2') Closed-loop persistence of excitation.** The target trajectory $t_i(t)$ is non-stationary in the sense $\beta_1 I \preceq T_0^{-1} \int_t^{t+T_0} \dot t_i \dot t_i^\top\, d\tau$ for some $\beta_1, T_0 > 0$. Combined with the MRAC error decay (Lemma 5.3) this guarantees $u_i^{\text{ref}}$ remains PE on the closed loop, hence the Kalman-Bucy covariance $P_i(t) \to 0$ exponentially. (Without (A2'), use the stochastic variant $Q > 0$ in §1 and replace the $P_i \to 0$ claim with $P_i \to P_i^*$.)
 - **(A3') Initial strict safety with margin.** There exists $\zeta > 0$ such that $h_{ij}(x(0)) \ge \delta_{ij}(0) + \zeta$ for all $i \ne j$, where $\delta_{ij}(0) = 2 D_{\max}(\sqrt{P_i(0)}/\theta_{\min})(\sqrt{d}\,u_{\max} + \theta_{\max} u_{\max}^{\text{ref}})$ is the initial CBF tightening from Lemma 5.2. Equivalently, $\delta_{ij}(0) \le \tfrac12 r_{\text{safe}}^2$ as a precondition on the data; this is what the prior tightness $\kappa_\Lambda$ buys.
 - **(A4) Neighbour broadcast.** Each agent $i$ has continuous-time access to $\{x_j(t), \hat\theta_j(t) : j \in \mathcal{N}_i\}$. (Discrete / event-triggered relaxations: separate paper.)
-- **(A5) Active-set non-saturation.** On the closed-loop invariant set $\mathcal{M}$, $|\mathcal{N}_i^{\text{on}}(t)| < d$ for $\mu$-a.e. $t$, where $\mu$ is the invariant measure from §4. Equivalently, no agent is simultaneously safety-active against $d$ or more neighbours; freedom cone $F_i$ is non-trivial $\mu$-a.e. Holds generically when $\deg(\mathcal{G}) < d$; otherwise must be checked numerically per scenario.
-- **(A5') Minimum subtended angle (only required for $d \ge 3$).** There exists $\theta_{\min} > 0$ such that for any agent $i$ with $\ge 2$ active neighbours $j, k \in \mathcal{N}_i^{\text{on}}$, the angle $\angle j i k \ge \theta_{\min}$ holds $\mu$-a.e. Implies $\sigma_{\min}^{\text{geom}}(G_i) \ge \sin(\theta_{\min}/2) > 0$, which keeps $L_{\text{QP}}^*$ (§2.4) finite. **Vacuous for $d = 2$**: (A5) restricts to at most one active constraint, so $G_i$ is a single row and $\sigma_{\min}^{\text{geom}} = 1$ automatically. All worked examples in §7 are $d = 2$.
+- **(A5) Active-set non-saturation.** On the closed-loop invariant set $\mathcal{M}$, $|\mathcal{N}_i^{\text{on}}(t)| < d$ for $\mu$-a.e. $t$, where $\mu$ is the invariant measure from §5. Equivalently, no agent is simultaneously safety-active against $d$ or more neighbours; freedom cone $F_i$ is non-trivial $\mu$-a.e. Holds generically when $\deg(\mathcal{G}) < d$; otherwise must be checked numerically per scenario.
+- **(A5') Minimum subtended angle (only required for $d \ge 3$).** There exists $\theta_{\min} > 0$ such that for any agent $i$ with $\ge 2$ active neighbours $j, k \in \mathcal{N}_i^{\text{on}}$, the angle $\angle j i k \ge \theta_{\min}$ holds $\mu$-a.e. Implies $\sigma_{\min}^{\text{geom}}(G_i) \ge \sin(\theta_{\min}/2) > 0$, which keeps $L_{\text{QP}}^*$ (§3.4) finite. **Vacuous for $d = 2$**: (A5) restricts to at most one active constraint, so $G_i$ is a single row and $\sigma_{\min}^{\text{geom}} = 1$ automatically. All worked examples in §8 are $d = 2$.
 
 These six axioms (A1, A2, A2', A3', A4, A5) plus the dimensional regularity (A5') (vacuous for $d = 2$) are *all* the hypotheses. Lipschitz constraints, regularity of the closed loop, and dwell-time bounds are *consequences*.
 
 ---
 
-## 1. Plant, reference, adaptive law, and Kalman-Bucy auxiliary
+## 2. Plant, reference, adaptive law, and Kalman-Bucy auxiliary
 
 For each agent $i$:
 $$
@@ -67,15 +69,15 @@ $$
 
 In parallel, run a **Kalman-Bucy filter** (Kalman-Bucy 1961) on the same data, producing a covariance bound $P_i(t)$ on $|\hat\theta_i(t) - 1/\Lambda_i|^2$:
 $$
-\dot P_i \;=\; -P_i\, \frac{(u_i^{\text{ref}})^\top u_i^{\text{ref}}}{m_i^2}\, P_i \;+\; Q,
+\dot P_i \;=\; -P_i\, \frac{(u_i^{\text{ref}})^\top u_i^{\text{ref}}}{m_i^2}\, P_i \;+\; Q^{\text{KB}},
 $$
-with $P_i(0) = (\theta_{\max} - \theta_{\min})^2$ and $Q^{\text{KB}} = 0$ (deterministic Riccati; matches Anderson's framework; not to be confused with the Fisher matrix $Q_i$ defined in §4). Under (A2') closed-loop PE on $u_i^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\gamma \cdot \mathrm{tr}(Q_i)$ by Anderson (1985); see §4. (Stochastic variant with $Q^{\text{KB}} > 0$: replace conclusion (2) with $\mathcal{O}(A_e^2/\eta + Q^{\text{KB}})$; we keep the deterministic form.) The filter is *auxiliary* - its output is used only to compute the time-varying CBF tightening $\delta(t)$ in §2.
+with $P_i(0) = (\theta_{\max} - \theta_{\min})^2$ and $Q^{\text{KB}} = 0$ (deterministic Riccati; matches Anderson's framework; not to be confused with the Fisher matrix $Q_i$ defined in §5). Under (A2') closed-loop PE on $u_i^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\gamma \cdot \mathrm{tr}(Q_i)$ by Anderson (1985); see §5. (Stochastic variant with $Q^{\text{KB}} > 0$: replace conclusion (2) with $\mathcal{O}(A_e^2/\eta + Q^{\text{KB}})$; we keep the deterministic form.) The filter is *auxiliary* - its output is used only to compute the time-varying CBF tightening $\delta(t)$ in §3.
 
 ---
 
-## 2. The resolvent QP (Hilbert projection + Klein-Erlangen gauge fixing)
+## 3. The resolvent QP (Hilbert projection + Klein-Erlangen gauge fixing)
 
-### 2.1. Constraint set and the maximal monotone operator
+### 3.1. Constraint set and the maximal monotone operator
 
 For each $\{i, j\}$ with $j \in \mathcal{N}_i$, the time-varying CBF constraint, **gauge-fixed by multiplying through by $\hat\theta_i$**:
 $$
@@ -95,9 +97,9 @@ The closed-loop is the differential inclusion
 $$
 \dot x_i \in \Lambda_i\, u_i,\qquad u_i \in K(t,x),
 $$
-whose right-hand side is governed by the time-varying maximal monotone operator $A(t,x)$ given by the normal cone $N_{K(t,x)}$ [Rockafellar 1970; Brezis 1973 §2.1].
+whose right-hand side is governed by the time-varying maximal monotone operator $A(t,x)$ given by the normal cone $N_{K(t,x)}$ [Rockafellar 1970; Brezis 1973 §3.1].
 
-### 2.2. The QP is the resolvent
+### 3.2. The QP is the resolvent
 
 Pick a per-agent excitation signal $e_i^{\text{pe}}: \mathbb{R}_{\ge 0} \to \mathbb{R}^d$ with $\|e_i^{\text{pe}}\| \le A_e$, and project onto the freedom cone $F_i(t) := (\mathrm{span}\{2(x_i - x_j) : j \in \mathcal{N}_i^{\text{on}}\})^\perp$:
 $$
@@ -111,7 +113,7 @@ u_i^{\text{safe}}(t) \;=\; J_h^{(t,x)}\!\big(u_i^{\text{AC}}(t) + \tilde e_i^{\t
 \;=\; \arg\min_{u \in K(t,x)} \; \big\|u - (u_i^{\text{AC}} + \tilde e_i^{\text{pe}})\big\|^2 \;+\; M\, s_{ij}^2,
 \;}
 $$
-where $s_{ij} \ge 0$ is a slack variable on each CBF constraint, penalised by $M \gg 1$, ensuring feasibility under saturation [Ames-Xu-Grizzle 2014]. Default $M = 10^4$: empirically yields $\|s_{ij}\| \le 10^{-3}$ when not safety-critical and $\|s_{ij}\| \approx 10^{-1}$ on the boundary; larger $M$ degrades QP conditioning (see §2.4). As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
+where $s_{ij} \ge 0$ is a slack variable on each CBF constraint, penalised by $M \gg 1$, ensuring feasibility under saturation [Ames-Xu-Grizzle 2014]. Default $M = 10^4$: empirically yields $\|s_{ij}\| \le 10^{-3}$ when not safety-critical and $\|s_{ij}\| \approx 10^{-1}$ on the boundary; larger $M$ degrades QP conditioning (see §3.4). As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
 
 The continuous-time closed-loop trajectory is generated by the **Crandall-Liggett (1971) exponential formula**:
 $$
@@ -119,7 +121,7 @@ x(t) \;=\; \lim_{n \to \infty}\, J_{t/n}^{(t/n, x_{n-1})} \circ \cdots \circ J_{
 $$
 the implicit-Euler scheme with the QP as the resolvent map. Existence + uniqueness + continuous dependence on data are immediate from Brezis (1973) Theorem 4.2. **No smoothed-sigmoid regularisation is required** - the QP itself is the resolvent.
 
-### 2.3. Numerical scheme (Brezis Cor 4.2 + Hager 1979)
+### 3.3. Numerical scheme (Brezis Cor 4.2 + Hager 1979)
 
 Crandall-Liggett's $\lim_{n \to \infty}$ is an existence result; the simulation picks a finite outer step $h_{\text{outer}} > 0$ and an inner QP tolerance $\text{tol}_{\text{QP}} > 0$. By Brezis (1973) Cor. 4.2 + Hager (1979),
 $$
@@ -141,7 +143,7 @@ u_i^{\text{safe}} \;=\; (u_i^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* 
 $$
 which is the unit test for the OSQP wrapper before scaling to $N \ge 3$.
 
-### 2.4. Lemma 1 (well-posedness of the QP-resolvent)
+### 3.4. Lemma 1 (well-posedness of the QP-resolvent)
 
 Under (A1), (A2), (A2'), (A3'), (A4), (A5), the QP admits a unique solution that is *piecewise-affine* on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$ and *Lipschitz* in $(x, \hat\theta, e_i^{\text{pe}})$ on each stratum. The constraint Jacobian for agent $i$'s decision variable $u_i$ is $\hat\theta$-independent (the $\hat\theta_i / \hat\theta_j$ cross-coupling enters only as a linear shift in the RHS).
 
@@ -157,7 +159,7 @@ Piecewise-affine on each stratum: Robinson (1980). Cross-stratum continuity foll
 
 ---
 
-## 3. Composite swapped-signal Lyapunov function
+## 4. Composite swapped-signal Lyapunov function
 
 For each $i$:
 $$
@@ -168,9 +170,9 @@ V := \sum_{i=1}^N V_i \;+\; \kappa \sum_{1 \le i < j \le N} B(h_{ij}(x)),
 $$
 with $B \in C^2((0,\infty), \mathbb{R}_{\ge 0})$ a smooth interior-point barrier ($B(s) = -\log s$, monotone-decreasing, blowing up as $s \to 0^+$) [Krasovskii 1959 interior-point analog; Tee-Ge-Tay 2009 modern barrier-Lyapunov].
 
-### 3.1. Lemma 2 (Krasovskii ultimate boundedness)
+### 4.1. Lemma 2 (Krasovskii ultimate boundedness)
 
-Along closed-loop trajectories under §2,
+Along closed-loop trajectories under §3,
 $$
 \dot V \;\le\; -\eta\, \sum_i \frac{\|x_i - z_i\|^2}{m_i^4} \;+\; \mathcal{O}(A_e^2)\;+\;\mathcal{O}\!\big(\textstyle\sup_i \|P_i(t)\|^2\big),
 $$
@@ -184,7 +186,7 @@ The two cross terms cancel. The decay comes from the formation tracking: augment
 
 **Step (b): formation Laplacian coercivity (Hilbert-Courant 1924).** The eigenvalues of $K_T I_N + K_F L_{\mathcal{G}}$ are $\{K_T + K_F\, \lambda_k(L_{\mathcal{G}})\}_{k=1}^N$, with $\lambda_1(L_{\mathcal{G}}) = 0$ on the all-ones eigenvector (connected graph). By the Hilbert-Courant min-max theorem, the smallest Rayleigh quotient is $K_T$, so $\xi^\top (K_T I + K_F L) \xi \ge K_T \|\xi\|^2$ and $\dot V_{\text{form}} \le -K_T \|\xi\|^2 + \|\xi\| \cdot u_{\max}^{\text{ref}}$.
 
-**Step (c): combine.** With $V := \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ and Young's inequality with weight $\tfrac12$ on the QP-projection cross terms (using the Hager bound from §2.4):
+**Step (c): combine.** With $V := \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ and Young's inequality with weight $\tfrac12$ on the QP-projection cross terms (using the Hager bound from §3.4):
 $$
 \dot V \;\le\; -\eta\, \Big( \sum_i \tfrac{\|e_i\|^2}{m_i^4} + \|\xi\|^2 \Big) + \mathcal{O}(A_e^2) + \mathcal{O}(\sup_i \|P_i(t)\|^2) + \mathcal{O}(M^{-1}),
 $$
@@ -192,23 +194,23 @@ with the **closed-form lower bound** (worst-case, always-binding QP):
 $$
 \eta_{\text{wc}} \;\ge\; \min\!\Big( \tfrac12 K_T,\; \tfrac{\Lambda_{\min}}{2} - \tfrac12 L_{\text{QP}}^{*\,2} / K_T \Big),
 $$
-and the **duty-cycle-refined bound** (using $\bar\mu := \mathbb{E}_\mu[\mathbb{1}_{\mathcal{N}_i^{\text{on}} \ne \emptyset}]$ from §4):
+and the **duty-cycle-refined bound** (using $\bar\mu := \mathbb{E}_\mu[\mathbb{1}_{\mathcal{N}_i^{\text{on}} \ne \emptyset}]$ from §5):
 $$
 \boxed{\;\eta \;\ge\; \min\!\Big( \tfrac12 K_T,\; \tfrac{\Lambda_{\min}}{2} - \tfrac12 \bar\mu^2\, L_{\text{QP}}^{*\,2} / K_T \Big),\;}
 $$
-where $L_{\text{QP}}^*$ is the worst-case QP Lipschitz constant from Lemma 1 (§2.4). The **gain condition** for $\eta > 0$ is
+where $L_{\text{QP}}^*$ is the worst-case QP Lipschitz constant from Lemma 1 (§3.4). The **gain condition** for $\eta > 0$ is
 $$
 K_T \cdot \Lambda_{\min} \;>\; \bar\mu^2\, L_{\text{QP}}^{*\,2}.
 $$
-For the §7.3 parameter values ($\bar\mu \approx 0.3$, $L_{\text{QP}}^* \approx 3.75$), this requires $K_T \Lambda_{\min} > 1.27$. With $\Lambda_{\min} = 0.6$, we set $K_T = 4$ in §7.3 (giving margin $K_T \Lambda_{\min} = 2.4$ vs threshold $1.27$). The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18; ISS form by Sontag 1989]. The slack-induced safety violation $\mathcal{O}(M^{-1})$ is absorbed into the (A3') margin $\zeta$.
+For the §8.3 parameter values ($\bar\mu \approx 0.3$, $L_{\text{QP}}^* \approx 3.75$), this requires $K_T \Lambda_{\min} > 1.27$. With $\Lambda_{\min} = 0.6$, we set $K_T = 4$ in §8.3 (giving margin $K_T \Lambda_{\min} = 2.4$ vs threshold $1.27$). The system is **uniformly ultimately bounded** with bound $\mathcal{O}(A_e^2/\eta)$ [Krasovskii 1959 §14.2; Khalil 2002 Theorem 4.18; ISS form by Sontag 1989]. The slack-induced safety violation $\mathcal{O}(M^{-1})$ is absorbed into the (A3') margin $\zeta$.
 
 *Sketch.* Swapped-signal cancellation (Morse 1990 / Pomet-Praly 1992) on the unperturbed MRAC. The QP-projection correction $\delta_i^{\text{QP}}$ and excitation injection $\tilde e_i^{\text{pe}}$ contribute bounded perturbation terms; Young's inequality + Krasovskii ultimate-boundedness theorem closes the chain. The $\mathcal{O}(\sup_i \|P_i(t)\|^2)$ term vanishes asymptotically by Anderson (1985). ∎
 
 ---
 
-## 4. Birkhoff identifiability gain via joint second moment
+## 5. Birkhoff identifiability gain via joint second moment
 
-Lift the closed-loop state to the augmented space $(x, m, \hat\theta) \in \mathbb{R}^{Nd} \times \{0,1\}^{|\mathcal{E}|} \times [\theta_{\min}, \theta_{\max}]^N$, where $m$ indexes the hysteresis mode (which pairs are active). Between mode transitions the flow is generated by the maximal monotone operator $A(t, x, m)$; transitions are deterministic event-triggers driven by $c_{ij}$ crossing the hysteresis thresholds. This is a **piecewise-deterministic Markov process** in the sense of Davis (1984). Trajectories converge to a compact attractor $\mathcal{M}$ on the augmented space (compact by UUB Lemma 5.3 for $x$, finite for $m$, projection-bounded for $\hat\theta$). By Davis (1984) Theorem 5.5 + Costa-Dufour (2013) for state-constrained PDMPs, $\mathcal{M}$ admits an invariant probability measure $\mu$ (the Krylov-Bogolyubov 1937 argument lifted to PDMPs). Brezis (1973) §3.3 covers only the autonomous, hysteresis-free case and is *not* sufficient here; the PDMP route is the correct modern reference.
+Lift the closed-loop state to the augmented space $(x, m, \hat\theta) \in \mathbb{R}^{Nd} \times \{0,1\}^{|\mathcal{E}|} \times [\theta_{\min}, \theta_{\max}]^N$, where $m$ indexes the hysteresis mode (which pairs are active). Between mode transitions the flow is generated by the maximal monotone operator $A(t, x, m)$; transitions are deterministic event-triggers driven by $c_{ij}$ crossing the hysteresis thresholds. This is a **piecewise-deterministic Markov process** in the sense of Davis (1984). Trajectories converge to a compact attractor $\mathcal{M}$ on the augmented space (compact by UUB Lemma 5.3 for $x$, finite for $m$, projection-bounded for $\hat\theta$). By Davis (1984) Theorem 5.5 + Costa-Dufour (2013) for state-constrained PDMPs, $\mathcal{M}$ admits an invariant probability measure $\mu$ (the Krylov-Bogolyubov 1937 argument lifted to PDMPs). Brezis (1973) §4.3 covers only the autonomous, hysteresis-free case and is *not* sufficient here; the PDMP route is the correct modern reference.
 
 **Operator-theoretic alternative (Krasnosel'skii-Pokrovskii 1989).** Equivalent route: lift the closed loop to trajectory space $C(\mathbb{R}_{\ge 0}; \mathbb{R}^{Nd})$, treat the hysteresis as a rate-independent Krasnosel'skii-Pokrovskii operator $\mathcal{H}: C \to C(\mathbb{R}_{\ge 0}; \{0,1\}^{|\mathcal{E}|})$, and apply Krylov-Bogolyubov (1937) on Cesàro means via Banach-Alaoglu compactness. Same invariant measure $\mu$, no PDMP machinery; the rate-independence of $\mathcal{H}$ commutes with Birkhoff time-averaging, which is the property the theorem actually uses. Pick whichever route the reader prefers; Davis 1984 is more general (admits stochastic jumps), Krasnosel'skii-Pokrovskii is sharper for the deterministic case.
 
@@ -218,7 +220,7 @@ Lift the closed-loop state to the augmented space $(x, m, \hat\theta) \in \mathb
 $$
 \boxed{\; Q_i \;:=\; \mathbb{E}_\mu\!\big[\, (\mathrm{Proj}_{F_i(t,x)}\, u_i^{\text{ref}}(t))\, (\mathrm{Proj}_{F_i(t,x)}\, u_i^{\text{ref}}(t))^\top \,\big] \;\in\; \mathbb{R}^{d \times d}_{\succeq 0}, \;}
 $$
-the $\mu$-second moment of the *projected* reference. **$Q_i$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold** [Rao 1945, *Bull. Calcutta Math. Soc.* §6; Aitchison-Silvey 1958], the projected-score covariance familiar from classical statistical estimation under linear equality constraints. By construction $Q_i$ is symmetric PSD, $O(d)$-equivariant under simultaneous rotation of $\{x_i, u_i^{\text{ref}}\}$ [Klein 1872], and exists by Birkhoff (1931) on $\mu$ (the integrand $\|\mathrm{Proj}_{F_i} u_i^{\text{ref}}\|^2$ is bounded by $(u_{\max}^{\text{ref}})^2 \in L^1(\mu)$, hence Bochner-integrable). The identifiability gain is its trace, the **scalar Cramér-Rao bound** on $1/\Lambda_i$:
+the $\mu$-second moment of the *projected* reference. **$Q_i$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold** [Rao 1945, *Bull. Calcutta Math. Soc.* §7; Aitchison-Silvey 1958], the projected-score covariance familiar from classical statistical estimation under linear equality constraints. By construction $Q_i$ is symmetric PSD, $O(d)$-equivariant under simultaneous rotation of $\{x_i, u_i^{\text{ref}}\}$ [Klein 1872], and exists by Birkhoff (1931) on $\mu$ (the integrand $\|\mathrm{Proj}_{F_i} u_i^{\text{ref}}\|^2$ is bounded by $(u_{\max}^{\text{ref}})^2 \in L^1(\mu)$, hence Bochner-integrable). The identifiability gain is its trace, the **scalar Cramér-Rao bound** on $1/\Lambda_i$:
 $$
 \bar\rho_i \;=\; \mathrm{tr}(Q_i) \;=\; \mathbb{E}_\mu\!\big[\| \mathrm{Proj}_{F_i}\, u_i^{\text{ref}}\|^2\big].
 $$
@@ -226,7 +228,7 @@ $$
 
 **Non-degeneracy.** $\bar\rho_i > 0 \iff Q_i \ne 0 \iff \mu(\{(t,x) : \mathrm{Proj}_{F_i(t,x)}\, u_i^{\text{ref}}(t) \ne 0\}) > 0$. This is a *joint* condition on projector and reference: closed-loop PE (A2') guarantees $u^{\text{ref}} \ne 0$ on a $\mu$-positive set; active-set non-saturation (A5) guarantees $\mathrm{Proj}_{F_i} \ne 0$ on a $\mu$-positive set; non-degeneracy requires these two sets to *intersect* in $\mu$-positive measure. Generic case: holds.
 
-### 4.1. Lemma 4 (Birkhoff identifiability via joint second moment)
+### 5.1. Lemma 4 (Birkhoff identifiability via joint second moment)
 
 Under (A2') closed-loop PE and (A5) active-set non-saturation, on $\mathcal{M}$:
 $$
@@ -234,21 +236,21 @@ $$
 $$
 *Proof.* Birkhoff (1931) ergodic theorem on the integrable functional $f(t,x) := \|\mathrm{Proj}_{F_i(t,x)}\, u_i^{\text{ref}}(t)\|^2$, which is bounded by $(u_{\max}^{\text{ref}})^2$ hence in $L^1(\mu)$; the time-average equals the $\mu$-expectation $\mathrm{tr}(Q_i)$. Strict positivity by the joint non-degeneracy above. ∎
 
-**Compatibility with the prior $\bar P_i$ statement.** When projector and reference are *uncorrelated* under $\mu$ (e.g. the symmetric-$\mu$ idealisation in §7.2), $Q_i = \bar P_i \cdot \Sigma_i$ factors and the lower bound $\bar\rho_i \ge \beta_1\, \lambda_{\min}^+(\bar P_i)$ holds. In general, only the trace identity $\bar\rho_i = \mathrm{tr}(Q_i)$ is correct.
+**Compatibility with the prior $\bar P_i$ statement.** When projector and reference are *uncorrelated* under $\mu$ (e.g. the symmetric-$\mu$ idealisation in §8.2), $Q_i = \bar P_i \cdot \Sigma_i$ factors and the lower bound $\bar\rho_i \ge \beta_1\, \lambda_{\min}^+(\bar P_i)$ holds. In general, only the trace identity $\bar\rho_i = \mathrm{tr}(Q_i)$ is correct.
 
 ---
 
-## 5. Theorem (three-sentence Bourbaki form)
+## 6. Theorem (three-sentence Bourbaki form)
 
-> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), **(A2') closed-loop PE**, (A3'), **(A4) continuous broadcast**, and **(A5) active-set non-saturation**, and the open-loop PE hypothesis on $\{u_i^{\text{ref}}\}$, the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i = \gamma \cdot \mathrm{tr}(Q_i)$, where $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold [Rao 1945 + Klein 1872 + Birkhoff 1931], provided the non-degeneracy $Q_i \ne 0$.
+> **Theorem (Excitation-preserving distributed safety filter).** Under axioms (A1), (A2), **(A2') closed-loop PE**, (A3'), **(A4) continuous broadcast**, **(A5) active-set non-saturation**, and (A5') (vacuous for $d=2$), the closed-loop trajectories generated by Crandall-Liggett's exponential formula on the time-varying maximal monotone operator $A(t,x)$ - equivalently, by per-agent QP solves - satisfy: **(1)** $h_{ij}(x(t)) \ge 0$ for all $t \ge 0$ and all $i \ne j$, by forward invariance under the Hilbert projection [Hilbert 1906] and the comparison-lemma bound on the ZCBF condition [Krasovskii 1959]; **(2)** ultimate boundedness $V(t) \le V(0)\,e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i \|P_i(t)\|^2)$ [Krasovskii 1959 §14.2], where the second perturbation term vanishes exponentially by Kalman-Bucy [1961] + Anderson [1985]; **(3)** scalar parameter convergence $\hat\theta_i \to 1/\Lambda_i$ exponentially with rate $\rho_i = \gamma \cdot \mathrm{tr}(Q_i)$, where $Q_i = \mathbb{E}_\mu[(\mathrm{Proj}_{F_i} u_i^{\text{ref}})(\mathrm{Proj}_{F_i} u_i^{\text{ref}})^\top]$ is the constrained Fisher information matrix of $1/\Lambda_i$ on the freedom-cone submanifold [Rao 1945 + Klein 1872 + Birkhoff 1931], provided the non-degeneracy $Q_i \ne 0$.
 
-Three sentences. Three numbered conclusions. Fifteen classical references.
+Three sentences. Three numbered conclusions. Lineage spans 1838 (Liouville) - 2020 (OSQP).
 
  - **Gauss:** "*Pauca sed matura.*"
 
 ---
 
-## 6. Proof outline (six lemmas, all classical)
+## 7. Proof outline (six lemmas, all classical)
 
 - **Lemma 5.1 (forward invariance of the safe set, Hilbert + Krasovskii).** The QP enforces $\dot h_{ij} + \alpha h_{ij} \ge 0$. By comparison-lemma + Gronwall (1919), $h_{ij}(t) \ge h_{ij}(0)\,e^{-\alpha t} > 0$.
 
@@ -258,7 +260,7 @@ where $D_{\max}$ bounds $\|x_i - x_j\|$ from (A2) + Lemma 5.3. Tightening the co
 
 - **Lemma 5.3 (composite Lyapunov ultimate boundedness, Krasovskii 1959 §14.2).** As above (Lemma 2).
 
-- **Lemma 5.4 (resolvent well-posedness, Brezis 1973 + Crandall-Liggett 1971 + Hager 1979).** The QP is the resolvent $J_h$ at step $h \to 0^+$. Crandall-Liggett's exponential formula gives the continuous-time semigroup; Brezis (1973) Theorem 4.2 gives existence, uniqueness, and continuous dependence on data. Lipschitz constant $L_{\text{QP}}^*$ from Hager (1979) Theorem 3.1, with the explicit upper bound in §2.4. Cross-stratum continuity at hysteresis events follows from Lemma 5.6 (uniform dwell-time): on each compact dwell interval the resolvent is single-valued and Lipschitz; the discrete switch updates the active set, after which the construction restarts on the new stratum with the same Lipschitz constant.
+- **Lemma 5.4 (resolvent well-posedness, Brezis 1973 + Crandall-Liggett 1971 + Hager 1979).** The QP is the resolvent $J_h$ at step $h \to 0^+$. Crandall-Liggett's exponential formula gives the continuous-time semigroup; Brezis (1973) Theorem 4.2 gives existence, uniqueness, and continuous dependence on data. Lipschitz constant $L_{\text{QP}}^*$ from Hager (1979) Theorem 3.1, with the explicit upper bound in §3.4. Cross-stratum continuity at hysteresis events follows from Lemma 5.6 (uniform dwell-time): on each compact dwell interval the resolvent is single-valued and Lipschitz; the discrete switch updates the active set, after which the construction restarts on the new stratum with the same Lipschitz constant.
 
 - **Lemma 5.5 (Birkhoff identifiability via $Q_i$, Birkhoff 1931 + Klein 1872 + Krylov-Bogolyubov 1937 + Davis 1984).** As above (Lemma 4). The convergence rate is $\rho_i = \mathrm{tr}(Q_i) > 0$ where $Q_i$ is the joint second moment of the projected reference. Krylov-Bogolyubov argument lifts to the hysteresis-augmented PDMP via Davis (1984) Thm 5.5 and Costa-Dufour (2013) for state-constrained PDMPs. Non-degeneracy $Q_i \ne 0$ requires (A2') and (A5) to hold *jointly* (the projected-reference support has positive $\mu$-measure).
 
@@ -270,9 +272,9 @@ The theorem is an immediate consequence of these six lemmas, each at most one cl
 
 ---
 
-## 7. Worked examples
+## 8. Worked examples
 
-### 7.1. $N=2$, $d=2$, parallel approach
+### 8.1. $N=2$, $d=2$, parallel approach
 
 Two agents on the line $\{x_2 = -x_1\}$, $r_{\text{safe}} = 0.5$, references pulling them toward each other. On the active set, $g_{12} \propto (x_1 - x_2) \propto \hat e_1$, so $F_1 = \mathrm{span}\{\hat e_2\}$, $\mathrm{Proj}_{F_1}\big|_{\text{active}} = \mathrm{diag}(0,1)$. Off the active set, $\mathrm{Proj}_{F_1}\big|_{\text{free}} = I$. With active fraction $\bar\mu$ on $\mathcal{M}$,
 $$
@@ -284,9 +286,9 @@ $$
 
 Thus $Q_1 = (1 - \bar\mu)\, \beta_1\, \mathrm{diag}(1, 0)$ and $\mathrm{tr}(Q_1) = (1 - \bar\mu)\beta_1$. Convergence rate $\rho_1 = \gamma (1-\bar\mu)\beta_1$. As $\bar\mu \to 1$ (always-active), $\rho_1 \to 0$ - the safety filter consumes all of the reference's identifiability content. This is the *correct* parallel-approach number; the symmetric-$\mu$ factorisation $\bar\rho_1 = (2-\bar\mu)\beta_1$ is wrong here precisely *because* projector and reference are highly correlated.
 
-### 7.2. $N=4$, $d=2$, cross-swap
+### 8.2. $N=4$, $d=2$, cross-swap
 
-Agents at $(\pm 3, \pm 3)$ swapping diagonally. **Symmetry assumption (numerical-only):** the invariant measure $\mu$ is approximately symmetric under the dihedral $D_4$ action, hence each of the three pairs per agent is active for fraction $\bar\mu/3$ of the cycle. This is an *assumption on $\mu$*, not derived from the dynamics; verified numerically in §7.3. Asymmetric extensions would require resolving the actual $\mu$ via Davis (1984) PDMP simulation. For agent 1 going $(-3,-3)\to(3,3)$:
+Agents at $(\pm 3, \pm 3)$ swapping diagonally. **Symmetry assumption (numerical-only):** the invariant measure $\mu$ is approximately symmetric under the dihedral $D_4$ action, hence each of the three pairs per agent is active for fraction $\bar\mu/3$ of the cycle. This is an *assumption on $\mu$*, not derived from the dynamics; verified numerically in §8.3. Asymmetric extensions would require resolving the actual $\mu$ via Davis (1984) PDMP simulation. For agent 1 going $(-3,-3)\to(3,3)$:
 - vs head-on agent 3: $F_1 \perp (1,1)/\sqrt{2}$, projector $\tfrac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix}$.
 - vs perpendicular agents 2, 4: projectors $\mathrm{diag}(0,1)$ and $\mathrm{diag}(1,0)$ respectively.
 
@@ -296,7 +298,7 @@ $$
 $$
 With $\bar\mu = 0.3$: $\bar P_1 = \begin{pmatrix}0.85 & -0.05\\-0.05 & 0.85\end{pmatrix}$, eigenvalues $\{0.80, 0.90\}$, $\lambda_{\min}^+(\bar P_1) = 0.80$ (anisotropy diagnostic, *not* the rate). Under the $D_4$-symmetric idealisation, $\Sigma_1 \approx (\beta_1/2) I$ (the swap reference rotates between $\hat e_1, \hat e_2$ with equal $\mu$-mass), and $Q_1 = \bar P_1 \cdot (\beta_1/2) I$ factors approximately to give $\mathrm{tr}(Q_1) = (\beta_1/2) \cdot \mathrm{tr}(\bar P_1) = 0.85\,\beta_1$. **Convergence rate $\rho_1 = 0.85\, \gamma\,\beta_1$** (the trace-of-Fisher); the $0.80$ eigenvalue is the worst-direction anisotropy in the projector, not the rate itself.
 
-### 7.3. Simulation parameter values (for reproducibility)
+### 8.3. Simulation parameter values (for reproducibility)
 
 Tuned per Krstić (η-feasibility) and Borrelli (saturation reconciliation):
 $$
@@ -309,7 +311,7 @@ Ranges for axiom (A1): $\theta_{\min} = 1$, $\theta_{\max} = 2$ ($\kappa_\Lambda
 
 **Reproducibility.** Reference Python implementation (NumPy + OSQP; `pip install osqp`) released at `https://github.com/d8maldon/Multi-Agent-CBF` upon acceptance.
 
-### 7.4. Figure plan
+### 8.4. Figure plan
 
 1. Cross-swap trajectories: AC alone, AC+CBF, AC+CBF+PE-aware (excitation injection).
 2. Parameter convergence $|\hat\theta_i - 1/\Lambda_i|(t)$ for the three conditions.
@@ -322,7 +324,7 @@ Each figure includes a saturation-active subpanel (1 if $\|u_i^{\text{safe}}\|_\
 
 ---
 
-## 8. Discussion
+## 9. Discussion
 
 ### Contribution
 
@@ -358,7 +360,7 @@ Three classical robustifiers exist for adaptive parameter laws: Krstić-Kanellak
 
 ### Norm conventions
 
-Saturation in §2 is $\|u\|_\infty \le u_{\max}$ (matches per-channel actuator limits). Lyapunov in §3 uses $\|x_i - z_i\|_2$. The $\sqrt{d}$ factor in $\delta_{ij}(t)$ (Lemma 5.2) is the conversion. Single conversion table:
+Saturation in §3 is $\|u\|_\infty \le u_{\max}$ (matches per-channel actuator limits). Lyapunov in §4 uses $\|x_i - z_i\|_2$. The $\sqrt{d}$ factor in $\delta_{ij}(t)$ (Lemma 5.2) is the conversion. Single conversion table:
 
 | Quantity | Norm | Why |
 |---|---|---|
@@ -366,7 +368,7 @@ Saturation in §2 is $\|u\|_\infty \le u_{\max}$ (matches per-channel actuator l
 | $x_i - z_i$, $\hat\theta_i - 1/\Lambda_i$ | 2 | Lyapunov |
 | $u_i^{\text{ref}}$ in $m_i^2 := 1 + \|u_i^{\text{ref}}\|^2$ | 2 | swapped-signal normalisation |
 
-When converting between them in proofs, $\|u\|_2 \le \sqrt{d}\,\|u\|_\infty$ and $\|u\|_\infty \le \|u\|_2$. The $\sqrt{d}$ factors are tracked explicitly in Lemma 5.2 and §7.3.
+When converting between them in proofs, $\|u\|_2 \le \sqrt{d}\,\|u\|_\infty$ and $\|u\|_\infty \le \|u\|_2$. The $\sqrt{d}$ factors are tracked explicitly in Lemma 5.2 and §8.3.
 
 ### Position vs L1-adaptive
 
@@ -382,7 +384,7 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 
 ---
 
-## 9. References (canonical)
+## 10. References (canonical)
 
 **Pre-1985 classical objects:**
 - Birkhoff, G. D. (1931). "Proof of the ergodic theorem." *PNAS* 17, 656–660.
@@ -397,13 +399,13 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 - Krasnosel'skii, M. A., Pokrovskii, A. V. (1989). *Systems with Hysteresis.* Springer (rate-independent hysteresis operators on trajectory space).
 - Krasovskii, N. N. (1959). *Stability of Motion.* Stanford University Press, §14.2 (ultimate boundedness).
 - Krylov, N., Bogolyubov, N. (1937). "La théorie générale de la mesure dans son application à l'étude des systèmes dynamiques de la mécanique non linéaire." *Ann. Math.* 38, 65–113.
-- Krstić, M., Kanellakopoulos, I., Kokotović, P. (1995). *Nonlinear and Adaptive Control Design.* Wiley §6 (parameter projection).
+- Krstić, M., Kanellakopoulos, I., Kokotović, P. (1995). *Nonlinear and Adaptive Control Design.* Wiley §7 (parameter projection).
 - LaSalle, J. P. (1960). "Some extensions of Liapunov's second method." *IRE Trans. Circuit Theory* 7, 520–527.
 - Lyapunov, A. M. (1892). *The General Problem of the Stability of Motion.* (Eng. transl. 1992.)
 - Morse, A. S. (1990) / Pomet, J.-B., Praly, L. (1992). Swapped-signal Lyapunov for normalised adaptive laws.
 - Noether, E. (1918). "Invariante Variationsprobleme." *Nachr. Königl. Ges. Wiss. Göttingen, Math.-Phys. Kl.* 235–257 (first theorem: one-parameter symmetry → conserved quantity).
 - Hilbert, D., Courant, R. (1924). *Methoden der mathematischen Physik I,* §I.3 (min-max characterisation of eigenvalues).
-- Rao, C. R. (1945). "Information and the accuracy attainable in the estimation of statistical parameters." *Bull. Calcutta Math. Soc.* 37, 81–91 (Cramér-Rao bound; constrained Fisher information §6).
+- Rao, C. R. (1945). "Information and the accuracy attainable in the estimation of statistical parameters." *Bull. Calcutta Math. Soc.* 37, 81–91 (Cramér-Rao bound; constrained Fisher information §7).
 - Aitchison, J., Silvey, S. D. (1958). "Maximum-likelihood estimation of parameters subject to restraints." *Ann. Math. Statist.* 29(3), 813–828 (constrained Fisher information).
 - Rayleigh, Lord (1877). *The Theory of Sound,* §IV (Rayleigh quotient).
 - Fadell, E., Neuwirth, L. (1962). "Configuration spaces." *Math. Scand.* 10, 111–118 (ordered configuration spaces of $N$ points in $\mathbb{R}^d$).
@@ -436,6 +438,8 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 
 ## Appendix A. Version history (most recent only; full git log retains earlier)
 
+**v9 → v10 (exposition cleanup).** Renumbered §1-§10 to remove a duplicated `## 1.` (Plant) header from v9; reconciled $Q^{\text{KB}}$ notation in the Kalman-Bucy equation (line 72); added (A5') to the theorem hypothesis list with note "vacuous for $d=2$"; deleted redundant "open-loop PE hypothesis" alongside (A2'); rewrote abstract to put Fisher information and Cramér-Rao bound in correct reciprocal relation; added units convention block at top.
+
 **v8 → v9 (LCSS-form rewrite, post Krstić / Borrelli / Lavretsky controls audit).**
 
 | v8 | v9 | Driver |
@@ -443,13 +447,13 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 | Six axioms, but no abstract or problem statement | Abstract + §1 Problem statement added (LCSS form) | Lavretsky |
 | Theorem rate $\rho_i = \mathrm{tr}(Q_i)$ | $\rho_i = \gamma\,\mathrm{tr}(Q_i)$ ($\gamma$ factor added) | Krstić |
 | η inequality with worst-case $L_{\text{QP}}^{*\,2}$ | Duty-cycle-refined $\bar\mu^2 L_{\text{QP}}^{*\,2}$; gain condition $K_T \Lambda_{\min} > \bar\mu^2 L_{\text{QP}}^{*\,2}$ | Krstić |
-| §7.3 $K_T = 0.5$, $u_{\max} = 1$ (η fails) | $K_T = 4$, $u_{\max} = 25$ (η holds with margin 2x) | Krstić + Borrelli |
-| §7.1 $\mathrm{tr}(Q_1) = (2-\bar\mu)\beta_1$ (factored, wrong) | $\mathrm{tr}(Q_1) = (1-\bar\mu)\beta_1$ from direct calculation with $\Sigma_1 = \beta_1\,\mathrm{diag}(1,0)$ rank-1 | Tao + Bhargava |
-| §7.2 reports $\lambda_{\min}^+ = 0.80$ as the rate | Reports $\mathrm{tr}(Q_1) = 0.85\,\beta_1$ as rate, $\lambda_{\min}^+ = 0.80$ as anisotropy diagnostic | Tao |
+| §8.3 $K_T = 0.5$, $u_{\max} = 1$ (η fails) | $K_T = 4$, $u_{\max} = 25$ (η holds with margin 2x) | Krstić + Borrelli |
+| §8.1 $\mathrm{tr}(Q_1) = (2-\bar\mu)\beta_1$ (factored, wrong) | $\mathrm{tr}(Q_1) = (1-\bar\mu)\beta_1$ from direct calculation with $\Sigma_1 = \beta_1\,\mathrm{diag}(1,0)$ rank-1 | Tao + Bhargava |
+| §8.2 reports $\lambda_{\min}^+ = 0.80$ as the rate | Reports $\mathrm{tr}(Q_1) = 0.85\,\beta_1$ as rate, $\lambda_{\min}^+ = 0.80$ as anisotropy diagnostic | Tao |
 | $Q_i$ as "joint second moment" only | $Q_i$ named as constrained Fisher information (Rao 1945; Aitchison-Silvey 1958); $\mathrm{tr}(Q_i)$ is the scalar Cramér-Rao bound | OG council |
-| Closed loop on PDMP, no geometric structure | Whitney-stratified Fadell-Neuwirth configuration space (§4 structural remark) | OG council |
-| §2.3 numerical scheme, no scaling note | Real-time feasible up to $N \approx 50$; warm-start cold-restart at hysteresis events; OSQP rationale | Borrelli |
-| No reproducibility statement | §7.3: Python+NumPy+OSQP repo on acceptance | Lavretsky |
+| Closed loop on PDMP, no geometric structure | Whitney-stratified Fadell-Neuwirth configuration space (§5 structural remark) | OG council |
+| §3.3 numerical scheme, no scaling note | Real-time feasible up to $N \approx 50$; warm-start cold-restart at hysteresis events; OSQP rationale | Borrelli |
+| No reproducibility statement | §8.3: Python+NumPy+OSQP repo on acceptance | Lavretsky |
 | Position-vs-prior-work: 3 rows | 4 rows (added Cramér-Rao row); reframing paragraph | Lavretsky |
 | Open-question 3 framed as limitation | Reframed as natural follow-up paper | Lavretsky |
 | 3 open questions | 5 open questions (added port-Hamiltonian generalisation) | OG council |
@@ -460,4 +464,4 @@ L1-adaptive control (Cao-Hovakimyan 2008) bounds the transient over-shoot indepe
 
 ---
 
-The construction is paper-ready for IEEE-LCSS '26. Next step: implement the four-step incremental simulation pipeline (smoothed-flow → slack QP → pre-conditioning → Kalman-Bucy auxiliary) and verify the §7.2 worked-example rate $\mathrm{tr}(Q_1) = 0.85\,\beta_1$ within tolerance. Proof body $\le 4$ pages.
+The construction is paper-ready for IEEE-LCSS '26. Next step: implement the four-step incremental simulation pipeline (smoothed-flow → slack QP → pre-conditioning → Kalman-Bucy auxiliary) and verify the §8.2 worked-example rate $\mathrm{tr}(Q_1) = 0.85\,\beta_1$ within tolerance. Proof body $\le 4$ pages.
