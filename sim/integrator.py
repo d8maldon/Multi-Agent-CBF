@@ -37,8 +37,8 @@ class State:
 
 
 def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
-          edges: tuple, A_e: float, phases: np.ndarray, d: int,
-          solver_cache: dict) -> tuple:
+          edges: tuple, A_e: float, omegas: np.ndarray, phases: np.ndarray,
+          d: int, solver_cache: dict) -> tuple:
     """Compute u^safe and all derivatives at a state. Returns (deriv, info)."""
     N = state.x.shape[0]
     t_now = t_targets_fn(state.t)
@@ -68,7 +68,7 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
         normals_unit = [n / max(np.linalg.norm(n), 1e-12) for n in normals]
         F_proj = dyn.freedom_cone_projector(normals_unit, d)
         if A_e > 0:
-            e_pe = dyn.excitation_signal(state.t, phases[i], A_e)
+            e_pe = dyn.excitation_signal(state.t, omegas[i], phases[i], A_e)
             pe_proj[i] = F_proj @ e_pe
 
         u_i_safe, slacks_i, _ = qpr.solve_qp(
@@ -91,7 +91,8 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
 
 
 def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
-              phases: np.ndarray, d: int, solver_cache: dict) -> tuple:
+              omegas: np.ndarray, phases: np.ndarray, d: int,
+              solver_cache: dict) -> tuple:
     """One RK4 step over h_outer."""
     h = pp.H_OUTER
 
@@ -106,10 +107,10 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
             pair_active=s_base.pair_active,
         )
 
-    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, phases, d, solver_cache)
-    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, phases, d, solver_cache)
-    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, phases, d, solver_cache)
-    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, phases, d, solver_cache)
+    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
+    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
+    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
+    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
 
     new_state = State(
         t=state.t + h,
@@ -139,6 +140,7 @@ def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
     N, d = x0.shape
     rng = np.random.default_rng(pp.PE_SEED)
     phases = rng.uniform(0.0, 2.0 * np.pi, size=(N, 2))
+    omegas = pp.pe_omegas(N)              # (N, 2) per-agent staggered frequencies
 
     state = State(
         t=0.0,
@@ -162,7 +164,7 @@ def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
 
     t_start = time.time()
     for step in range(n_steps):
-        state, info = _rk4_step(state, t_targets_fn, edges, A_e, phases, d, solver_cache)
+        state, info = _rk4_step(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
 
         if step % log_every == 0:
             log_t.append(state.t)

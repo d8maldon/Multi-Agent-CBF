@@ -42,16 +42,23 @@ def run_crossswap(T_final: float = 4.0, A_e: float = 0.10 * pp.U_MAX,
         print(f"  [{'OK' if ok else 'FAIL'}] {name}: {detail}")
     print()
 
-    # Run with exact paper geometry
+    # Run with sec8.2 v16 OSCILLATING-target geometry (PE-preserving)
     out = integrator.run(
         x0=pp.CROSSSWAP_X0,
         z0=pp.CROSSSWAP_X0.copy(),
         edges=pp.CROSSSWAP_EDGES,
-        t_targets_fn=lambda t: pp.CROSSSWAP_TARGETS,   # sec8.2 constant targets
+        t_targets_fn=pp.crossswap_targets_oscillating,
         A_e=A_e,
         T_final=T_final,
         log_every=log_every,
     )
+
+    # Report per-agent PE frequencies for traceability
+    omegas = pp.pe_omegas(pp.LAMBDA_TRUE.shape[0])
+    print("Per-agent PE frequencies (sec8.3 v16):")
+    for i, w in enumerate(omegas):
+        print(f"  agent {i}: ({w[0]/(2*np.pi):.2f}, {w[1]/(2*np.pi):.2f}) Hz")
+    print()
 
     print(f"Wall time:  {out['wall_time_s']:.2f} s for {out['n_steps']} steps "
           f"({out['wall_time_s']/out['n_steps']*1000:.1f} ms/step)")

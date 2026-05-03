@@ -44,11 +44,20 @@ SLACK_PENALTY = 1e4
 # Hysteresis threshold [§8.3 line: $\varepsilon = 0.05\, r_{safe}^2$]
 EPS_HYST = 0.05 * R_SAFE ** 2
 
-# PE excitation [§8.3 line: $\omega_1 = 2\pi(0.7), \omega_2 = 2\pi(1.1)$,
-#                            $\phi_i^k \sim U[0, 2\pi)$ under seed rng(42)]
-OMEGA_1 = 2.0 * np.pi * 0.7        # [Hz]
-OMEGA_2 = 2.0 * np.pi * 1.1        # [Hz]
+# PE excitation [§8.3 (v16): per-agent staggered frequencies
+#   omega_i^k = 2 pi (f0 + i Delta_f + (k-1) Delta_f/2)  Hz
+#   phi_i^k ~ U[0, 2 pi) under seed rng(42)]
+PE_F0 = 0.7              # Hz, base frequency           [§8.3 v16]
+PE_DELTA_F = 0.2         # Hz, per-agent stagger        [§8.3 v16]
 PE_SEED = 42
+
+def pe_omegas(N: int) -> np.ndarray:
+    """Per-agent (omega_i^1, omega_i^2) frequencies in rad/s. Returns (N, 2)."""
+    return 2.0 * np.pi * np.array([
+        [PE_F0 + i * PE_DELTA_F + 0.0,
+         PE_F0 + i * PE_DELTA_F + PE_DELTA_F / 2]
+        for i in range(N)
+    ])
 
 # A_e sweep values [§8.4 figure 5: $A_e \in \{0, 0.05, 0.10, 0.20\}\,u_{max}$]
 A_E_SWEEP = np.array([0.0, 0.05, 0.10, 0.20]) * U_MAX
@@ -70,13 +79,29 @@ CROSSSWAP_X0 = np.array([
     [-3.0,  3.0],   # the diagonal-opposite corners.
 ])
 
-# Targets: each agent swaps to the diagonally-opposite corner [§8.2]
-CROSSSWAP_TARGETS = np.array([
+# Each agent's diagonally-opposite corner (the "swap" target) [§8.2]
+CROSSSWAP_DIAGONAL = np.array([
     [ 3.0,  3.0],
     [-3.0, -3.0],
     [-3.0,  3.0],
     [ 3.0, -3.0],
 ])
+
+# §8.2 v16 oscillating cross-swap: targets oscillate sinusoidally between
+# starting corner and diagonal-opposite corner with period T_swap.
+T_SWAP = 4.0    # [s] full swap-and-back period         [§8.2 v16]
+
+def crossswap_targets_oscillating(t: float) -> np.ndarray:
+    """[§8.2 v16]:
+        t_i(tau) = c_i + (1 - cos(2 pi tau / T_swap))/2 * (c_swap_i - c_i)
+    Returns (N, d) target positions at time t.
+    """
+    s = 0.5 * (1.0 - np.cos(2.0 * np.pi * t / T_SWAP))   # in [0, 1]
+    return CROSSSWAP_X0 + s * (CROSSSWAP_DIAGONAL - CROSSSWAP_X0)
+
+# Backward-compat alias for the OLD constant-targets formulation (used only
+# for verifying the v15 baseline; v16 onward uses the oscillating form).
+CROSSSWAP_TARGETS_CONSTANT = CROSSSWAP_DIAGONAL
 
 # Communication graph: complete K4 (every pair) [§8.2: "Three pairs per agent"]
 CROSSSWAP_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))

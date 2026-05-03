@@ -69,14 +69,16 @@ def kalman_bucy_riccati(P: np.ndarray, u_ref: np.ndarray) -> np.ndarray:
     return rates
 
 
-def excitation_signal(t: float, phases: np.ndarray, A_e: float) -> np.ndarray:
-    """[§8.3 line 329]:
-        e_i^pe(t) = A_e [sin(omega_1 t + phi_i^1), sin(omega_2 t + phi_i^2)]^T
-    Returns (d,) vector for one agent. Caller passes per-agent phases.
+def excitation_signal(t: float, omegas_i: np.ndarray, phases_i: np.ndarray,
+                      A_e: float) -> np.ndarray:
+    """[§8.3 v16]:
+        e_i^pe(t) = A_e [sin(omega_i^1 t + phi_i^1), sin(omega_i^2 t + phi_i^2)]^T
+    where omega_i^k is per-agent (staggered) and phases_i are per-agent.
+    Returns (d,) vector for one agent.
     """
     return A_e * np.array([
-        np.sin(pp.OMEGA_1 * t + phases[0]),
-        np.sin(pp.OMEGA_2 * t + phases[1]),
+        np.sin(omegas_i[0] * t + phases_i[0]),
+        np.sin(omegas_i[1] * t + phases_i[1]),
     ])
 
 

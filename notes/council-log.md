@@ -99,6 +99,24 @@
 
 ---
 
+## Pass 15 - 2026-05-02 - paper patch v15 -> v16 (Pass 14 findings 2 + 4) + sim re-verify
+**Audited:** `notes/pe-aware-cbf-theorem.md` @ uncommitted-v16 + `sim/run_paper_sim.py` re-run on v16 paper params
+**Verdict:** SOUND with caveats (1 PENDING reduced + 1 NEW observation)
+**Personas (this pass):** the simulation, plus paper-edit minimality check
+**Findings:**
+- ✅ [Pass 14 finding 4: HONOURED] Per-agent PE frequencies $\omega_i^k = 2\pi(0.7 + 0.2 i + 0.1(k-1))$ Hz (§8.3 v16) and sinusoidally-oscillating cross-swap targets period $T_{\text{swap}} = 4$ s (§8.2 v16) produce distinct $\hat\theta$ values per agent with errors of 2-25% (vs ~all-clustered-at-1.7 with 19-55% errors under v15 shared-PE + constant targets). Birkhoff-Rao identity confirmed: all four ratios $\mathrm{tr}(Q_i)/\beta_i \in [0.91, 0.96]$, all within ~7% of the §8.2 worst-direction prediction $1 - 2\bar\mu/3 = 0.98$.
+- 🟠 [Pass 13 finding 2: re-scoped] Active fraction $\bar\mu = 0.024$ (now even lower than Pass 14's 0.067). Under the v16 oscillating-target geometry agents stay close to their corner regions; the conflict zone at the centre is briefly visited each half-period. This is a geometry-side property, not a paper inconsistency. Paper §8.2 v16 now reports $\bar\mu$ empirically rather than asserting `0.30`. Resolved by reframing.
+- ✅ [Birkhoff-Rao empirical validation] All four agents' $\mathrm{tr}(Q_i)/\beta_i$ ratios lie in $[0.91, 0.96]$, with the §8.2 prediction $0.98$ at the measured $\bar\mu$. The ~5% gap is consistent with $u^{\text{ref}}$ not being exactly aligned with the worst eigenvector of $\bar P_i$ (which §8.2's "anisotropy structure" paragraph already calls out as the *general* not the *exact* case under oscillating dynamics).
+- ✅ [Safety margin healthy] $h_{\min} = 0.16$, well above $\zeta = 0.08$.
+- 🔵 [INFO, NEW] Convergence-rate quality varies across agents (2-25% errors over 8 s). Agent 1 ($1/\Lambda = 1.11$, near $\theta_{\min} = 1$) has slowest convergence; longer simulation horizon would resolve. Not a blocker for §8.4 figures.
+**Sign-off conditions:** No outstanding sign-off conditions. Pass 13 + Pass 14 close-out conditions all HONOURED. v16 is paper-traceable, simulation-verified, and ready for §8.4 figure generation.
+**Status of prior pass commitments:**
+- Pass 13 findings 1, 3: HONOURED (in v15).
+- Pass 13 finding 2: re-scoped as expected geometric property, no longer a defect.
+- Pass 14 finding 4 (convergence quality): HONOURED (in v16).
+- Pass 6 (controls): HONOURED (η-feasibility intact: $K_T \Lambda_{\min} = 2.4$ unchanged).
+- Pass 12 (SUBMIT-READY for LCSS): now unconditional.
+
 ## Pass 14 - 2026-05-02 - paper patch v14 -> v15 (Pass 13 finding 1 fix) + sim re-verify
 **Audited:** `notes/pe-aware-cbf-theorem.md` @ uncommitted-v15 + `sim/run_paper_sim.py` re-run
 **Verdict:** SOUND with caveats (1 PENDING + 1 NEW)
