@@ -1,8 +1,8 @@
-"""Single source of truth for the v14 paper parameters [§8.3].
+"""Single source of truth for the v17 paper parameters [§8.3 — Dubins].
 
-Every numerical value here is copied verbatim from
-notes/pe-aware-cbf-theorem.md §8.3. Do not change values without updating
-the paper first AND adding a council-log entry.
+Every numerical value is copied verbatim from the v17 paper (complex-Dubins
+multi-agent LOE-adaptive CBF). Per the council protocol, do not change
+values without updating the paper first AND adding a council-log entry.
 """
 
 from __future__ import annotations
@@ -11,156 +11,159 @@ import numpy as np
 
 
 # ---------------------------------------------------------------------------
-# §8.3 Simulation parameter values (paper, verbatim)
+# §8.3 v17 Dubins simulation parameters (paper, verbatim)
 # ---------------------------------------------------------------------------
 
-# Reference-feedback / adaptive gains [§8.3 line: $K_T = 4, ..., \alpha = 10$]
-K_T = 4.0           # tracking gain                            [§8.3]
-K_F = 0.3           # formation-coupling gain                  [§8.3]
-GAMMA = 0.15        # adaptive-law gain                        [§8.3]
-ALPHA = 10.0        # ZCBF class-K gain                        [§8.3]
+# Reference-feedback / adaptive gains
+K_T = 4.0           # tracking gain                                   [§8.3]
+K_F = 0.3           # formation-coupling gain                         [§8.3]
+GAMMA = 0.15        # adaptive-law gain (rate of theta_hat update)    [§8.3]
 
-# Safety / actuator [§8.3 line: $r_{safe} = 0.4, u_{max} = 25$]
-R_SAFE = 0.4        # pair-safe distance                       [§8.3]
-U_MAX = 25.0        # per-channel saturation                   [§8.3]
+# HOCBF class-K gains [§3.1: ddot h + (alpha_1 + alpha_2) dot h + alpha_1 alpha_2 h >= 0]
+ALPHA_1 = 5.0       # first class-K gain (psi_1 = dot h + alpha_1 h)  [§3.1]
+ALPHA_2 = 5.0       # second class-K gain                              [§3.1]
 
-# True unknown control effectiveness [§8.3 (v15): $\Lambda = (0.6, 0.9, 0.7, 0.8)$]
-# Chosen so that 1/Lambda_i ∈ [theta_min, theta_max] = [1, 2] for every agent.
-# (v14 used (0.6, 1.4, 0.9, 1.6); agents 2 + 4 had 1/Lambda outside the bounds —
-#  Pass 13 finding 1 in notes/council-log.md. Fixed in v15.)
-LAMBDA_TRUE = np.array([0.6, 0.9, 0.7, 0.8])    # ground truth, hidden from controller
+# Dubins-vehicle constants
+V_0 = 1.0           # constant cruise speed (constant-speed simplif.)  [§2.1]
+PSI_DOT_MAX = 5.0   # maximum turn rate |u_2| <= psi_dot_max [rad/s]   [§3.1]
 
-# Projection bounds [§8.3: $\theta_{min} = 1, \theta_{max} = 2$]
+# Safety
+R_SAFE = 0.4        # pair-safe distance                              [§8.3]
+
+# True unknown LOE on turn-rate channel: lambda_i in [lambda_min, 1]
+# Chosen so that 1/lambda_i in [theta_min, theta_max] = [1, 2] for every agent.
+LAMBDA_TRUE = np.array([0.6, 0.9, 0.7, 0.8])    # 1/L = (1.667, 1.111, 1.429, 1.25)
+
+# Projection bounds [§8.3 axiom A1]: hat_theta in [theta_min, theta_max]
 THETA_MIN = 1.0
 THETA_MAX = 2.0
-KAPPA_LAMBDA = THETA_MAX / THETA_MIN  # = 2                    [§8.3 axiom A1]
+KAPPA_LAMBDA = THETA_MAX / THETA_MIN  # = 2
 
-# (A3') initial-safety margin [§8.3 line: $\zeta = 0.5\, r_{safe}^2$]
+# (A3') initial-safety margin: zeta = 0.5 r_safe^2
 ZETA = 0.5 * R_SAFE ** 2
 
-# QP slack penalty [§8.3 line: $M = 10^4$]
+# QP slack penalty  [§3.2: M = 10^4]
 SLACK_PENALTY = 1e4
 
-# Hysteresis threshold [§8.3 line: $\varepsilon = 0.05\, r_{safe}^2$]
+# Hysteresis threshold  [§3.1: eps in [delta_ij + tol, 0.1 r_safe^2]]
 EPS_HYST = 0.05 * R_SAFE ** 2
 
-# PE excitation [§8.3 (v16): per-agent staggered frequencies
-#   omega_i^k = 2 pi (f0 + i Delta_f + (k-1) Delta_f/2)  Hz
-#   phi_i^k ~ U[0, 2 pi) under seed rng(42)]
-PE_F0 = 0.7              # Hz, base frequency           [§8.3 v16]
-PE_DELTA_F = 0.2         # Hz, per-agent stagger        [§8.3 v16]
+# PE excitation [§8.3 v17]: per-agent staggered turn-rate excitation
+PE_F0 = 0.7              # base frequency [Hz]
+PE_DELTA_F = 0.2         # per-agent stagger [Hz]
 PE_SEED = 42
 
 def pe_omegas(N: int) -> np.ndarray:
-    """Per-agent (omega_i^1, omega_i^2) frequencies in rad/s. Returns (N, 2)."""
+    """Per-agent (omega_i^1, omega_i^2) frequencies in rad/s. Returns (N, 2).
+
+    The v17 PE injection is now a SCALAR (turn-rate channel only). We keep two
+    frequencies per agent so that e_pe(t) = A_e [sin(w1 t + phi1) + sin(w2 t + phi2)]
+    is a richer scalar signal than a single sinusoid.
+    """
     return 2.0 * np.pi * np.array([
         [PE_F0 + i * PE_DELTA_F + 0.0,
          PE_F0 + i * PE_DELTA_F + PE_DELTA_F / 2]
         for i in range(N)
     ])
 
-# A_e sweep values [§8.4 figure 5: $A_e \in \{0, 0.05, 0.10, 0.20\}\,u_{max}$]
-A_E_SWEEP = np.array([0.0, 0.05, 0.10, 0.20]) * U_MAX
+# A_e sweep [§8.4 fig 5]
+A_E_SWEEP = np.array([0.0, 0.05, 0.10, 0.20]) * PSI_DOT_MAX
 
-# Numerical scheme [§3.3 + §8.3 timing]
-H_OUTER = 5e-3          # 5 ms outer step                       [§3.3]
-QP_TOL = 1e-7           # OSQP solve tolerance                   [§3.3]
+# Numerical scheme [§3.3]
+H_OUTER = 5e-3          # 5 ms outer step
+QP_TOL = 1e-7           # OSQP tolerance
 
 
 # ---------------------------------------------------------------------------
-# §8.2 cross-swap geometry (paper, verbatim)
+# §8.2 v17 cross-swap geometry (Dubins waypoints)
 # ---------------------------------------------------------------------------
 
-# 4 agents at corners (±3, ±3) [§8.2 line: "Agents at $(\pm 3, \pm 3)$"]
-CROSSSWAP_X0 = np.array([
-    [-3.0, -3.0],
-    [ 3.0,  3.0],   # paper §8.2: "agent 1 going (-3,-3)→(3,3)" indexes from 1;
-    [ 3.0, -3.0],   # we use 0-based; agent 0 ↔ paper agent 1; targets are
-    [-3.0,  3.0],   # the diagonal-opposite corners.
-])
+# 4 agents at corners (±3, ±3); diagonal swap.
+# Initial positions in complex form:
+CROSSSWAP_R0 = np.array([
+    -3.0 - 3.0j,
+     3.0 - 3.0j,
+     3.0 + 3.0j,
+    -3.0 + 3.0j,
+], dtype=complex)
 
-# Each agent's diagonally-opposite corner (the "swap" target) [§8.2]
+# Initial headings: pointed at the diagonal target
 CROSSSWAP_DIAGONAL = np.array([
-    [ 3.0,  3.0],
-    [-3.0, -3.0],
-    [-3.0,  3.0],
-    [ 3.0, -3.0],
-])
+     3.0 + 3.0j,
+    -3.0 + 3.0j,
+    -3.0 - 3.0j,
+     3.0 - 3.0j,
+], dtype=complex)
 
-# §8.2 v16 oscillating cross-swap: targets oscillate sinusoidally between
-# starting corner and diagonal-opposite corner with period T_swap.
-T_SWAP = 4.0    # [s] full swap-and-back period         [§8.2 v16]
+# Initial v_a: speed V_0 directed toward target
+def crossswap_v0() -> np.ndarray:
+    """Initial v_{a,i}(0) = V_0 * exp(i psi_i(0)), pointed toward diagonal target."""
+    direction = (CROSSSWAP_DIAGONAL - CROSSSWAP_R0)
+    direction = direction / np.abs(direction)
+    return V_0 * direction
 
-def crossswap_targets_oscillating(t: float) -> np.ndarray:
-    """[§8.2 v16]:
-        t_i(tau) = c_i + (1 - cos(2 pi tau / T_swap))/2 * (c_swap_i - c_i)
-    Returns (N, d) target positions at time t.
-    """
-    s = 0.5 * (1.0 - np.cos(2.0 * np.pi * t / T_SWAP))   # in [0, 1]
-    return CROSSSWAP_X0 + s * (CROSSSWAP_DIAGONAL - CROSSSWAP_X0)
-
-# Backward-compat alias for the OLD constant-targets formulation (used only
-# for verifying the v15 baseline; v16 onward uses the oscillating form).
-CROSSSWAP_TARGETS_CONSTANT = CROSSSWAP_DIAGONAL
-
-# Communication graph: complete K4 (every pair) [§8.2: "Three pairs per agent"]
+# Communication graph: complete K4
 CROSSSWAP_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))
 
+# Sustained cross-swap: targets oscillate sinusoidally between starting and
+# diagonal corners with period T_swap.
+T_SWAP = 8.0    # [s] full swap-and-back period for Dubins (slower than v16)
 
-# ---------------------------------------------------------------------------
-# Predicted §8.2 number (for verification)
-# ---------------------------------------------------------------------------
-
-def predicted_rho_bar_over_beta(mu_bar: float) -> float:
-    """[§8.2 stratum-direct sum, eq. line 304]:
-        tr(Q_1) = (1 - 2 mu_bar / 3) * beta_1
-    """
-    return 1.0 - 2.0 * mu_bar / 3.0
+def crossswap_targets_oscillating(t: float) -> np.ndarray:
+    """[§8.2 v17]: oscillating cross-swap targets in complex form. Returns (N,) complex."""
+    s = 0.5 * (1.0 - np.cos(2.0 * np.pi * t / T_SWAP))   # in [0, 1]
+    return CROSSSWAP_R0 + s * (CROSSSWAP_DIAGONAL - CROSSSWAP_R0)
 
 
 # ---------------------------------------------------------------------------
-# Sanity checks at import (verifiable cross-references to the paper)
+# Sanity checks
 # ---------------------------------------------------------------------------
 
-def verify_paper_consistency():
-    """Run sanity checks against §8.3's stated relationships.
-
-    Returns a dict {check_name: (ok, detail)} so the simulation can report
-    paper inconsistencies as council-loggable findings rather than silently
-    applying workarounds.
-    """
+def verify_paper_consistency() -> dict:
     checks = {}
 
-    # §8.3: $K_T \Lambda_{\min} = 2.4 > \bar\mu^2 L_{QP}^{*2} \approx 1.27$
+    # 1/lambda in projection bounds
+    inv = 1.0 / LAMBDA_TRUE
+    in_range = (inv >= THETA_MIN) & (inv <= THETA_MAX)
+    checks["1/lambda in [theta_min, theta_max]"] = (
+        bool(np.all(in_range)),
+        f"1/lambda = {inv}; in [{THETA_MIN}, {THETA_MAX}]: {in_range}",
+    )
+
+    # eta-feasibility (carries over from v16; same Lambda spread → same K_T·Λ_min margin)
     Lambda_min = float(LAMBDA_TRUE.min())
     val = K_T * Lambda_min
     checks["K_T*Lambda_min == 2.4"] = (
         np.isclose(val, 2.4, atol=0.01),
-        f"K_T*Lambda_min = {val:.4f} (paper says 2.4)",
+        f"K_T*Lambda_min = {val:.4f}",
     )
 
-    # axiom A1 / projection range covers all 1/Lambda_i
-    inv_Lambda = 1.0 / LAMBDA_TRUE
-    in_range = (inv_Lambda >= THETA_MIN) & (inv_Lambda <= THETA_MAX)
-    checks["1/Lambda in [theta_min, theta_max]"] = (
-        bool(np.all(in_range)),
-        f"1/Lambda = {inv_Lambda}; in [{THETA_MIN}, {THETA_MAX}]: {in_range}",
-    )
-
-    # Hysteresis threshold within the §3.1 prescribed window
-    # paper §3.1 line 92: $\varepsilon \in [\delta_{ij}(t)+\text{tol}, 0.1\,r_{safe}^2]$
+    # eps_hyst window
     upper = 0.1 * R_SAFE ** 2
     checks["eps_hyst <= 0.1 r_safe^2"] = (
         EPS_HYST <= upper,
-        f"eps_hyst = {EPS_HYST}, upper = {upper}",
+        f"eps_hyst = {EPS_HYST:.4f}, upper = {upper:.4f}",
+    )
+
+    # HOCBF gains positive
+    checks["alpha_1, alpha_2 > 0"] = (
+        ALPHA_1 > 0 and ALPHA_2 > 0,
+        f"alpha_1 = {ALPHA_1}, alpha_2 = {ALPHA_2}",
+    )
+
+    # Initial speed match
+    v0 = crossswap_v0()
+    speeds = np.abs(v0)
+    checks["|v_a(0)| == V_0"] = (
+        np.allclose(speeds, V_0),
+        f"|v_a(0)| = {speeds}, V_0 = {V_0}",
     )
 
     return checks
 
 
 if __name__ == "__main__":
-    # Print verification results.
-    print("Paper parameter consistency checks:")
+    print("v17 paper parameter consistency checks:")
     for name, (ok, detail) in verify_paper_consistency().items():
         flag = "OK" if ok else "FAIL"
         print(f"  [{flag}] {name}: {detail}")
