@@ -8,3 +8,17 @@ venv/
 *.swp
 .idea/
 .vscode/
+
+# LaTeX build artifacts (keep .tex, .bib, .pdf; ignore the rest)
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.toc
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.synctex.gz
+
+# Pytest
+.pytest_cache/

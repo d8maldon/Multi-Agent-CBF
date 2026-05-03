@@ -34,26 +34,74 @@ class State:
     theta_hat: np.ndarray    # (N,)   parameter estimate
     P: np.ndarray            # (N,)   KB covariance
     pair_active: dict        # {frozenset({i,j}): bool}
+    # Communication-delay buffer: history of recent x and theta_hat for each agent.
+    # Indexed as broadcast_buffer[(t - delay) // h_outer] gives the delayed state.
+    # We keep it as a list of (t, x, theta_hat) tuples on the same H_OUTER cadence;
+    # when delay = 0 this is just the current state.
+    broadcast_history: list = None
+
+
+def _delayed_state(state: State, comm_delay: float) -> tuple:
+    """Return (x_delayed, theta_delayed) corresponding to t - comm_delay.
+
+    For comm_delay = 0, returns current state. Otherwise returns the
+    historical broadcast snapshot at the appropriate index, or the
+    initial broadcast if the delay exceeds available history.
+    """
+    if comm_delay <= 0.0 or not state.broadcast_history:
+        return state.x, state.theta_hat
+    target_t = state.t - comm_delay
+    # Walk backwards through history to find the closest snapshot
+    for (t_hist, x_hist, theta_hist) in reversed(state.broadcast_history):
+        if t_hist <= target_t:
+            return x_hist, theta_hist
+    # Fallback: oldest snapshot we have
+    t0, x0, th0 = state.broadcast_history[0]
+    return x0, th0
 
 
 def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
           edges: tuple, A_e: float, omegas: np.ndarray, phases: np.ndarray,
-          d: int, solver_cache: dict, use_safety_filter: bool = True) -> tuple:
+          d: int, solver_cache: dict, use_safety_filter: bool = True,
+          comm_delay: float = 0.0) -> tuple:
     """Compute u^safe and all derivatives at a state. Returns (deriv, info)."""
     N = state.x.shape[0]
     t_now = t_targets_fn(state.t)
     u_ref = dyn.reference_velocity(state.z, t_now, edges)
     u_AC = state.theta_hat[:, None] * u_ref
 
-    # Hysteretic active set [§3.1 line 92]
+    # Communication-delayed broadcast: agent i sees x_j and theta_j as of (t - delay).
+    # Agent i's OWN state (x_i, theta_i, u_AC_i) remains current.
+    if comm_delay > 0.0:
+        x_bcast, theta_bcast = _delayed_state(state, comm_delay)
+        u_AC_bcast = theta_bcast[:, None] * dyn.reference_velocity(state.z, t_now, edges)
+        # Agent i sees its own state current; neighbours delayed.
+        # We splice: per-agent broadcast-view tensors built when needed.
+    else:
+        x_bcast, theta_bcast = state.x, state.theta_hat
+        u_AC_bcast = u_AC
+
+    def per_agent_view(i):
+        """Each agent i sees (its own current state) + (delayed neighbours)."""
+        x_view = x_bcast.copy()
+        theta_view = theta_bcast.copy()
+        u_AC_view = u_AC_bcast.copy()
+        x_view[i] = state.x[i]
+        theta_view[i] = state.theta_hat[i]
+        u_AC_view[i] = u_AC[i]
+        return x_view, theta_view, u_AC_view
+
+    # Hysteretic active set [§3.1 line 92] — uses agent 0's view by default for
+    # the global pair_active dict. Each pair (i, j) is symmetric in the c_ij
+    # condition; with delays both agents see the same delayed-neighbour state.
     state.pair_active = dyn.update_hysteresis(
-        state.x, state.theta_hat, u_AC, state.pair_active, edges
+        x_bcast, theta_bcast, u_AC_bcast, state.pair_active, edges
     )
 
     # CBF tightening from KB filter [§2.1 line 84 + Lemma 5.2]
     delta_ij = {}
     for (i, j) in edges:
-        D_max_est = float(np.linalg.norm(state.x[i] - state.x[j])) + 1e-3
+        D_max_est = float(np.linalg.norm(x_bcast[i] - x_bcast[j])) + 1e-3
         delta = max(dyn.cbf_tightening_delta(state.P[i], D_max_est, d),
                     dyn.cbf_tightening_delta(state.P[j], D_max_est, d))
         delta_ij[frozenset({i, j})] = delta
@@ -62,9 +110,10 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
     u_safe = np.zeros((N, d))
     pe_proj = np.zeros((N, d))
     for i in range(N):
+        x_view_i, theta_view_i, u_AC_view_i = per_agent_view(i)
         active_pairs = [j for j in dyn.neighbours(i, edges)
                         if state.pair_active.get(frozenset({i, j}), False)]
-        normals = [state.x[i] - state.x[j] for j in active_pairs]
+        normals = [x_view_i[i] - x_view_i[j] for j in active_pairs]
         normals_unit = [n / max(np.linalg.norm(n), 1e-12) for n in normals]
         F_proj = dyn.freedom_cone_projector(normals_unit, d)
         if A_e > 0:
@@ -73,12 +122,11 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
 
         if use_safety_filter:
             u_i_safe, slacks_i, _ = qpr.solve_qp(
-                i, state.x, state.theta_hat, u_AC, pe_proj[i],
+                i, x_view_i, theta_view_i, u_AC_view_i, pe_proj[i],
                 state.pair_active, edges, delta_ij, solver_cache,
             )
             u_safe[i] = u_i_safe
         else:
-            # Bypass: u_safe = clipped u_AC + projected PE  (no CBF constraint)
             u_safe[i] = np.clip(u_AC[i] + pe_proj[i], -pp.U_MAX, pp.U_MAX)
 
     # Plant: dx/dt = Lambda u_safe   [§2 eq line 59]
@@ -96,7 +144,8 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
 
 def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
               omegas: np.ndarray, phases: np.ndarray, d: int,
-              solver_cache: dict, use_safety_filter: bool = True) -> tuple:
+              solver_cache: dict, use_safety_filter: bool = True,
+              comm_delay: float = 0.0) -> tuple:
     """One RK4 step over h_outer."""
     h = pp.H_OUTER
     usf = use_safety_filter
@@ -110,12 +159,13 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
                               pp.THETA_MIN, pp.THETA_MAX),
             P=np.maximum(s_base.P + dt * ds["dP"], 0.0),
             pair_active=s_base.pair_active,
+            broadcast_history=s_base.broadcast_history,
         )
 
-    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
-    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
-    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
-    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
+    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf, comm_delay)
+    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf, comm_delay)
+    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf, comm_delay)
+    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf, comm_delay)
 
     new_state = State(
         t=state.t + h,
@@ -131,6 +181,7 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
             0.0,
         ),
         pair_active=state.pair_active,
+        broadcast_history=state.broadcast_history,
     )
     return new_state, info_1
 
@@ -138,7 +189,7 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
 def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
         t_targets_fn: Callable[[float], np.ndarray],
         A_e: float, T_final: float, log_every: int = 1,
-        use_safety_filter: bool = True) -> dict:
+        use_safety_filter: bool = True, comm_delay: float = 0.0) -> dict:
     """Run a full simulation from initial conditions.
 
     PE phases are drawn under seed pp.PE_SEED [§8.3].
@@ -157,6 +208,7 @@ def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
         # P_i(0) = (theta_max - theta_min)^2  [§2 line 74]
         P=(pp.THETA_MAX - pp.THETA_MIN) ** 2 * np.ones(N),
         pair_active={frozenset({i, j}): False for (i, j) in edges},
+        broadcast_history=[],
     )
 
     n_steps = int(np.ceil(T_final / pp.H_OUTER))
@@ -169,9 +221,20 @@ def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
     Q_count = 0
 
     t_start = time.time()
+    # Pre-size broadcast history buffer for max needed depth + small slack
+    max_buf = int(np.ceil(comm_delay / pp.H_OUTER)) + 4 if comm_delay > 0 else 0
+
     for step in range(n_steps):
+        # Append current snapshot BEFORE stepping forward (so the buffer
+        # contains x at the current time t_now)
+        if comm_delay > 0:
+            state.broadcast_history.append((state.t, state.x.copy(), state.theta_hat.copy()))
+            # Trim buffer to required depth
+            if len(state.broadcast_history) > max_buf:
+                state.broadcast_history = state.broadcast_history[-max_buf:]
+
         state, info = _rk4_step(state, t_targets_fn, edges, A_e, omegas, phases,
-                                d, solver_cache, use_safety_filter)
+                                d, solver_cache, use_safety_filter, comm_delay)
 
         if step % log_every == 0:
             log_t.append(state.t)

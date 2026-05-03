@@ -266,3 +266,55 @@ def figure_5_ae_sweep(sweep_results: list, save: Path):
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Figure 6 — communication-delay robustness sweep
+# ---------------------------------------------------------------------------
+
+def figure_6_comm_delay(delay_results: list, save: Path):
+    """delay_results: list of (tau_ms, out_dict). Plots h_min(t) per delay
+    and the worst-case h_min vs delay.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+
+    # Left: h_min(t) trace per delay
+    ax = axes[0]
+    cmap = plt.cm.viridis
+    for k, (tau_ms, out) in enumerate(delay_results):
+        c = cmap(k / max(len(delay_results) - 1, 1))
+        h_min_t = out["h"].min(axis=1)
+        ax.plot(out["t"], h_min_t, color=c, linewidth=1.4,
+                label=fr"$\tau = {tau_ms}$ ms")
+    ax.axhline(0.0, color="black", linewidth=0.8, label="safe-set boundary")
+    ax.axhline(pp.ZETA, color="grey", linewidth=0.6, linestyle="--",
+               label=fr"$\zeta = {pp.ZETA:.3f}$")
+    ax.set_xlabel("time [s]")
+    ax.set_ylabel(r"$\min_{ij}\,h_{ij}(t)$  $[\rm m^2]$")
+    ax.set_title(r"Safety margin vs communication delay $\tau$")
+    ax.legend(ncol=2, loc="lower right", fontsize=8)
+
+    # Right: worst-case h_min vs delay (run-min)
+    ax = axes[1]
+    taus = np.array([d[0] for d in delay_results])
+    hmins = np.array([d[1]["h"].min() for d in delay_results])
+    colours = ["#2ca02c" if h >= pp.ZETA else "#ff9800" if h >= 0 else "#d62728"
+               for h in hmins]
+    ax.bar(np.arange(len(taus)), hmins, color=colours, edgecolor="black", linewidth=0.5)
+    for k, (tau, h) in enumerate(zip(taus, hmins)):
+        ax.text(k, max(h, 0) + 0.005, f"{h:+.3f}", ha="center", fontsize=9)
+    ax.axhline(0.0, color="black", linewidth=0.8)
+    ax.axhline(pp.ZETA, color="grey", linewidth=0.6, linestyle="--",
+               label=fr"$\zeta = {pp.ZETA:.3f}$ margin target")
+    ax.set_xticks(np.arange(len(taus)))
+    ax.set_xticklabels([f"{int(t)}" for t in taus])
+    ax.set_xlabel(r"comm-delay $\tau$ [ms]")
+    ax.set_ylabel(r"run-min  $\min_t \min_{ij} h_{ij}$  $[\rm m^2]$")
+    ax.set_title("Empirical robustness margin against (A4) relaxation")
+    ax.legend(loc="upper right")
+
+    fig.suptitle(r"Figure 6 — Communication-delay sweep $\tau \in \{0, 5, 20, 50, 100\}$ ms",
+                 fontsize=12, y=1.02)
+    fig.tight_layout()
+    fig.savefig(save, bbox_inches="tight")
+    plt.close(fig)

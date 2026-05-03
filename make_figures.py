@@ -32,8 +32,9 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 # Cross-swap scenario, fixed across all runs in this driver
 def crossswap_run(A_e: float, T_final: float, log_every: int,
-                  use_safety_filter: bool = True) -> dict:
-    """One section 8.2 cross-swap run with given excitation amplitude."""
+                  use_safety_filter: bool = True,
+                  comm_delay: float = 0.0) -> dict:
+    """One section 8.2 cross-swap run with given excitation amplitude + delay."""
     return integrator.run(
         x0=pp.CROSSSWAP_X0,
         z0=pp.CROSSSWAP_X0.copy(),
@@ -43,6 +44,7 @@ def crossswap_run(A_e: float, T_final: float, log_every: int,
         T_final=T_final,
         log_every=log_every,
         use_safety_filter=use_safety_filter,
+        comm_delay=comm_delay,
     )
 
 
@@ -56,7 +58,7 @@ def main(quick: bool = False):
     if quick:
         T_final, log_every = 4.0, 8
     else:
-        T_final, log_every = 8.0, 4
+        T_final, log_every = 16.0, 8        # 4 full swap cycles for fig 2 convergence
     print(f"Cross-swap (v16): T_final = {T_final} s, log_every = {log_every}.")
     print()
 
@@ -92,6 +94,20 @@ def main(quick: bool = False):
             print(_summary(f"A_e={A_e_frac:.2f}", out))
         sweep.append((A_e, out))
 
+    # --- Communication-delay sweep for figure 6 ---
+    print("[comm-delay sweep] for figure 6:")
+    delay_runs = []
+    for tau_ms in [0, 5, 20, 50, 100]:
+        if tau_ms == 0:
+            out = out_PE   # already have A_e=0.10 u_max, delay=0 result
+            print(f"     tau = {tau_ms} ms: re-using AC+CBF+PE run")
+        else:
+            print(f"     tau = {tau_ms} ms: running...")
+            out = crossswap_run(0.10 * pp.U_MAX, T_final, log_every,
+                                use_safety_filter=True, comm_delay=tau_ms * 1e-3)
+            print(_summary(f"tau={tau_ms}ms", out))
+        delay_runs.append((tau_ms, out))
+
     print()
     print("Generating figures...")
     plots.figure_1_trajectories(out_AC, out_CBF, out_PE, OUT / "figure_1_trajectories.pdf")
@@ -99,13 +115,11 @@ def main(quick: bool = False):
     plots.figure_3_identifiability(out_PE, OUT / "figure_3_identifiability.pdf")
     plots.figure_4_safety(out_PE, OUT / "figure_4_safety.pdf")
     plots.figure_5_ae_sweep(sweep, OUT / "figure_5_ae_sweep.pdf")
+    plots.figure_6_comm_delay(delay_runs, OUT / "figure_6_comm_delay.pdf")
 
     print()
-    print(f"All figures written to {OUT}/")
+    print(f"All 6 figures written to {OUT}/")
     print(f"Total wall time: {time.time() - t0:.1f} s")
-    print()
-    print("Note: figure 6 (communication-delay sweep) is deferred (sim does not")
-    print("      yet model neighbour-broadcast latency).")
 
 
 if __name__ == "__main__":
