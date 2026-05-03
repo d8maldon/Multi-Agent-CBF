@@ -99,6 +99,18 @@
 
 ---
 
+## Pass 13 - 2026-05-02 - simulation (v14 paper-verbatim run)
+**Audited:** `notes/pe-aware-cbf-theorem.md` @ `e70c857` (v14) via `sim/` + `run_paper_sim.py`
+**Verdict:** SOUND with caveats
+**Personas (this pass):** the simulation itself, with traceable code (every parameter cited to section 8.3, every function cited to its paper section)
+**Findings:**
+- 🔴 [NEW] **Paper-internal Lambda <-> theta-bound inconsistency.** `Lambda = (0.6, 1.4, 0.9, 1.6)` gives `1/Lambda = (1.667, 0.714, 1.111, 0.625)`. With `[theta_min, theta_max] = [1, 2]` per section 8.3, agents 1 and 3 have `1/Lambda` BELOW the projection lower bound and cannot converge. Sim confirms: `theta_hat` for agents 1, 3 saturates at `theta_min = 1` (technically here drifts toward 1.7 because PE pushes them up before projection clamps). Fix options: (a) restrict Lambda to `[1/theta_max, 1/theta_min] = [0.5, 1.0]`; (b) widen `[theta_min, theta_max]` to cover all `1/Lambda` values; (c) keep Lambda but acknowledge agents 1+3 will not converge (vacuous theorem on those agents).
+- 🟠 [NEW] **Active fraction `mu_bar = 0.06` measured vs paper's `mu_bar = 0.30` assumed in section 8.2.** With section 8.2 geometry (corners +/- 3, swap to opposite diagonal corner) under section 8.3 hysteresis (`eps = 0.05 r_safe^2`), the simulation observes pairs being active only 6% of the time, not 30%. Geometry-and-hysteresis interact differently than the section 8.2 derivation assumes. Either the section 8.2 `0.30` was an empirical placeholder (acceptable, but say so) or the §3.1 hysteresis epsilon needs reconsidering for this geometry (the c_ij value is dominated by `alpha theta h ~ 240` initially, so the engagement threshold `eps = 0.008` engages only at very last instant).
+- 🟠 [NEW] **Slack-induced safety violation 100x larger than O(M^-1) prediction.** Sim observes `h_min = -0.011` (i.e., agents penetrate the safe set by ~1 cm); paper section 3.2 line 116 predicts slack `O(M^-1) ~ 1e-4` and absorbs it into `zeta = 0.08`. Discrepancy of 2 orders of magnitude. Possible causes: (a) hysteresis engaged too late (see finding above), so by the time CBF binds the perturbation has already pushed the state past the boundary; (b) RK4 outer step `h = 5 ms` too coarse near the active-set transition.
+- ✅ [NEW] **Partial section 8.2 numerical hit.** Agent 1's identifiability ratio `tr(Q_1)/beta_1 = 0.787` is within 2% of the paper's headline prediction `0.80 beta_1`. Agent 0 is 0.93 (paper's `1 - 2*mu_bar/3` formula at the measured `mu_bar = 0.06` gives 0.96). The Birkhoff-Rao identifiability framework is empirically valid; the discrepancy is in the active-set assumption, not in the rate identity.
+**Sign-off conditions:** "After paper section 8.3 fixes Lambda range OR widens projection bounds (finding 1), and section 8.2 reconciles the active-fraction prediction with the measurement (finding 2), simulation will re-verify the section 8.2 number."
+**Status of prior pass commitments:** Pass 12's SUBMIT-READY for LCSS is now CONDITIONAL on resolving finding 1. The math is sound but the paper-prescribed parameters do not satisfy their own axioms.
+
 ## Pass 12 - 2026-05-02 - controls-expert-reviewer (v14 SUBMIT-READY)
 **Audited:** `notes/pe-aware-cbf-theorem.md` @ `e70c857` (v14)
 **Verdict:** SUBMIT-READY for IEEE-LCSS
