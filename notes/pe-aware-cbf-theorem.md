@@ -1,6 +1,6 @@
 # Excitation-Preserving Distributed Safety Filter for Multi-Agent Adaptive Control
 
-**Status:** v16, scenario hardening (Pass 15): §8.2 cross-swap targets now oscillate sinusoidally to satisfy axiom (A2') closed-loop PE on a sustained basis (constant targets killed PE once $z \to t$, stalling parameter convergence). §8.3 PE excitation frequencies are now **per-agent** $\omega_i^k$, staggered $0.2$ Hz apart, to avoid the near-singular ensemble PE that arose from sharing a single $(\omega_1, \omega_2)$ pair across all four agents. Both edits surfaced by `sim/run_paper_sim.py` Pass 14 observations. Continuous-time simulation only; no hardware claims.
+**Status:** v17 (Pass 18, NEW SCOPE: complex-Dubins multi-agent LOE-adaptive CBF). State lifted from $x_i \in \mathbb{R}^2$ (single-integrator) to $(r_i, v_{a,i}) \in \mathbb{C}^2$ (Dubins, with heading via $\arg v_{a,i}$). Unknown LOE gain $\lambda_i$ on the turn-rate channel only (Maldonado-Naranjo + Annaswamy 2025 formulation). CBF $h_{ij} = |r_i - r_j|^2 - r_{\text{safe}}^2$ has **relative degree 2** w.r.t. $u_{2,i}$, requiring HOCBF [Xiao-Belta 2021]. Per-agent QP has scalar decision variable $u_{2,i} \in \mathbb{R}$. v16 single-integrator results retained as Pass 12 SUBMIT-READY; v17 extends the framework to Dubins. Continuous-time simulation only; no hardware claims.
 **Length target:** IEEE-LCSS 8-page limit; current draft fits ~6.5 pages with slack.
 
 **Normalisation convention.** All quantities in §1-§7 are *dimensionless*, obtained by rescaling against fixed reference scales $T^* > 0$ (time), $L^* > 0$ (length), and $u^* := L^*/T^*$ (velocity). Specifically: $\tilde x := x/L^*$, $\tilde t := t/T^*$, $\tilde u := u/u^*$, $\tilde K_T := K_T \cdot T^*$, $\tilde\gamma := \gamma$ (already dimensionless under this rescaling), etc. Under this convention the plant equation $\dot x = \Lambda u$ becomes $d\tilde x/d\tilde t = \Lambda\, \tilde u$ with $\Lambda$ dimensionless. The decay rate $\eta$ is dimensionless (per unit normalised time); the physical rate is $\eta_{\text{phys}} = \eta / T^*$. The dwell-time bound $\tau_d$ in Lemma 5.6 is similarly dimensionless; physical dwell-time is $\tau_d^{\text{phys}} = T^* \tau_d$. Numerical values in §8.3 ($K_T = 4$, $\gamma = 0.15$, $r_{\text{safe}} = 0.4$, $u_{\max} = 25$, etc.) are reported with the engineering choice $T^* = 1$ s, $L^* = 1$ m; the gain condition $K_T \Lambda_{\min} > \bar\mu^2 L_{\text{QP}}^{*\,2}$ in §4.1 is then a numerical relation between dimensionless quantities (with $K_T = 4$ in our normalised units), giving $4 \cdot 0.6 = 2.4 > 0.09 \cdot 14.06 = 1.27$ ✓.
@@ -54,66 +54,145 @@ These six axioms (A1, A2, A2', A3', A4, A5) plus the dimensional regularity (A5'
 
 ---
 
-## 2. Plant, reference, adaptive law, and Kalman-Bucy auxiliary
+## 2. Plant (complex Dubins, multi-agent), reference, adaptive law, Kalman-Bucy auxiliary
 
-For each agent $i$:
+We adopt the complex state-space representation of the Dubins vehicle from Maldonado-Naranjo and Annaswamy [arXiv 2504.08190, IEEE L-CSS 2025], extended to the multi-agent setting. For each agent $i \in \{1, \ldots, N\}$:
+
 $$
-\dot x_i = \Lambda_i\, u_i, \qquad
-u_i^{\text{ref}} = -K_T(z_i - t_i) - K_F \sum_{j \in \mathcal{N}_i}\!\big[(z_i - z_j) - (t_i - t_j)\big],
-$$
-$$
-u_i^{\text{AC}} = \hat\theta_i\, u_i^{\text{ref}}, \qquad
-\dot{\hat\theta}_i = \mathrm{Proj}_{[\theta_{\min},\theta_{\max}]}\!\Big[ -\frac{\gamma}{m_i^2}\, (u_i^{\text{ref}})^\top (x_i - z_i) \Big],
-\qquad \dot z_i = u_i^{\text{ref}}.
+\boxed{\;
+r_i \;=\; x_i + i\,y_i \;\in\; \mathbb{C}, \qquad
+v_{a,i} \;=\; V_{a,i}\, e^{i\psi_i} \;\in\; \mathbb{C},
+\;}
 $$
 
-In parallel, run a **Kalman-Bucy filter** (Kalman-Bucy 1961) on the same data, producing a covariance bound $P_i(t)$ on $|\hat\theta_i(t) - 1/\Lambda_i|^2$:
+so the per-agent state is $(r_i, v_{a,i}) \in \mathbb{C}^2$ - *position* plus *velocity-along-heading*. The argument $\psi_i = \arg v_{a,i}$ is the heading; the magnitude $V_{a,i} = |v_{a,i}|$ is the resultant speed.
+
+### 2.1. Dynamics
+
+The dynamics, in the bilinear complex form [Maldonado-Naranjo–Annaswamy 2025 eq. 5]:
 $$
-\dot P_i \;=\; -P_i\, \frac{(u_i^{\text{ref}})^\top u_i^{\text{ref}}}{m_i^2}\, P_i \;+\; Q^{\text{KB}},
+\dot r_i \;=\; v_{a,i}, \qquad
+\dot v_{a,i} \;=\; u_i\, v_{a,i},
 $$
-with $P_i(0) = (\theta_{\max} - \theta_{\min})^2$ and $Q^{\text{KB}} = 0$ (deterministic Riccati; matches Anderson's framework; not to be confused with the Fisher matrix $Q_i$ defined in §5). Under (A2') closed-loop PE on $u_i^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\gamma \cdot \mathrm{tr}(Q_i)$ by Anderson (1985); see §5. (Stochastic variant with $Q^{\text{KB}} > 0$: replace conclusion (2) with $\mathcal{O}(A_e^2/\eta + Q^{\text{KB}})$; we keep the deterministic form.) The filter is *auxiliary* - its output is used only to compute the time-varying CBF tightening $\delta(t)$ in §3.
+where $u_i = u_{1,i} + i\, u_{2,i} \in \mathbb{C}$ is the complex control input. The real part $u_{1,i} = \dot V_{a,i}/V_{a,i}$ controls speed; the imaginary part $u_{2,i} = \dot \psi_i$ controls turn rate.
+
+**Loss-of-effectiveness on the turn-rate channel** [op. cit., eq. 6]: a constant unknown gain $\lambda_i \in [\lambda_{\min}, 1]$, $\lambda_{\min} > 0$, scales the turn-rate channel:
+$$
+\dot v_{a,i} \;=\; \big(u_{1,i} + i\,\lambda_i\, u_{2,i}\big)\, v_{a,i}.
+$$
+
+**Constant-speed simplification** [op. cit., eq. 16]. The user's outer loop regulates speed to a constant $V_0$, so $u_{1,i} = 0$ and $V_{a,i}(t) \equiv V_0$. The bilinear system reduces to the *linear*-in-control form
+$$
+\dot r_i \;=\; v_{a,i}, \qquad
+\dot v_{a,i} \;=\; i\, \lambda_i\, u_{2,i}\, v_{a,i}.
+$$
+The only effective control per agent is the scalar real turn-rate $u_{2,i} \in \mathbb{R}$.
+
+### 2.2. Reference model (path-following)
+
+Each agent has a reference path $\Gamma_i \subset \mathbb{C}$ defined by waypoints $\{w_i^{(k)}\}$ and minimum-turn-radius $R_{\min}$ constraints (op. cit. §III.A). The reference model has state $(r_{\text{ref},i}, v_{\text{ref},i}) \in \mathbb{C}^2$:
+$$
+\dot r_{\text{ref},i} \;=\; v_{\text{ref},i}, \qquad
+\dot v_{\text{ref},i} \;=\; i\, u_{2,\text{ref},i}\, v_{\text{ref},i},
+$$
+with $|v_{\text{ref},i}| = V_0$ and $u_{2,\text{ref},i} = \dot\psi_{\text{ref},i} = \kappa_{\text{ref},i}\, V_0$ (curvature times speed).
+
+### 2.3. Tracking error and reference-feedback law
+
+Define the multi-agent tracking error in complex form:
+$$
+e_i \;=\; r_i - r_{\text{ref},i} \;\in\; \mathbb{C}, \qquad
+\tilde v_i \;=\; v_{a,i} - v_{\text{ref},i} \;\in\; \mathbb{C}.
+$$
+The reference-feedback law lifts the v16 formation-tracking law to the complex setting:
+$$
+u_{2,i}^{\text{ref}} \;=\; u_{2,\text{ref},i} \;-\; \Re\!\Big(\frac{K_T\, e_i + K_F\!\sum_{j \in \mathcal{N}_i}\![(e_i - e_j) - (e_{\text{slot},i} - e_{\text{slot},j})]}{i\, v_{a,i}}\Big),
+$$
+where the division-by-$i\,v_{a,i}$ converts the complex tracking-error feedback into a real turn-rate command (the only available control under the constant-speed simplification). $K_T, K_F$ are the same tracking and formation-coupling gains as v16. $e_{\text{slot},i}$ encodes per-agent target-slot offsets in the formation.
+
+### 2.4. Adaptive control law
+
+The adaptive control synthesises the reference command modulated by the parameter estimate:
+$$
+u_{2,i}^{\text{AC}} \;=\; \hat\theta_i\, u_{2,i}^{\text{ref}}, \qquad
+\hat\theta_i \in [\theta_{\min}, \theta_{\max}],
+$$
+where $\hat\theta_i$ is the estimate of $1/\lambda_i$ (so that $\lambda_i \hat\theta_i u^{\text{ref}} \approx u^{\text{ref}}$ once $\hat\theta_i \to 1/\lambda_i$). The adaptive law uses the *complex* swapped-signal gradient on the tracking error:
+$$
+\dot{\hat\theta}_i \;=\; \mathrm{Proj}_{[\theta_{\min},\theta_{\max}]}\!\Big[ -\frac{\gamma}{m_i^2}\, \Re\!\big( \overline{i\, v_{a,i}\, u_{2,i}^{\text{ref}}}\, \tilde v_i \big) \Big],
+\qquad m_i^2 := 1 + |v_{a,i}\, u_{2,i}^{\text{ref}}|^2,
+$$
+which is the natural lift of the v16 normalised swapped-signal law to the complex regressor $i\, v_{a,i}\, u_{2,i}^{\text{ref}}$. This is the same Pomet-Praly normalisation now applied componentwise to the complex error.
+
+### 2.5. Kalman-Bucy auxiliary
+
+The KB filter on the same data, deterministic Riccati ($Q^{\text{KB}} = 0$):
+$$
+\dot P_i \;=\; -P_i\, \frac{|v_{a,i}\, u_{2,i}^{\text{ref}}|^2}{m_i^2}\, P_i, \qquad
+P_i(0) = (\theta_{\max} - \theta_{\min})^2.
+$$
+Under (A2') closed-loop PE on $u_{2,i}^{\text{ref}}$, $P_i(t) \to 0$ exponentially at rate $\gamma \cdot \mathrm{tr}(Q_i)$ by Anderson (1985); see §5. The filter's output drives the time-varying CBF tightening $\delta(t)$ in §3.
 
 ---
 
 ## 3. The resolvent QP (Hilbert projection + Klein-Erlangen gauge fixing)
 
-### 3.1. Constraint set and the maximal monotone operator
+### 3.1. CBF + relative-degree analysis (HOCBF)
 
-For each $\{i, j\}$ with $j \in \mathcal{N}_i$, the time-varying CBF constraint, **gauge-fixed by multiplying through by $\hat\theta_i$**:
-$$
-c_{ij}(u_i; x, \hat\theta) \;:=\; 2(x_i - x_j)^\top u_i \;-\; 2\,\frac{\hat\theta_i}{\hat\theta_j}\,(x_i - x_j)^\top u_j^{\text{AC}} \;+\; \alpha\,\hat\theta_i\, h_{ij}(x) \;\ge\; \delta_{ij}(t),
-$$
-where $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big) (\sqrt{d}\,u_{\max} + \theta_{\max}\,u_{\max}^{\text{ref}})$ is the time-varying tightening from Lemma 5.2 (vanishing as $P_i(t) \to 0$), and $\alpha > 0$ is the linear class-$\mathcal{K}$ gain in the ZCBF condition $\dot h_{ij} + \alpha h_{ij} \ge 0$. The ZCBF formulation is the modern rediscovery [Ames-Xu-Grizzle 2014 eq. 14] of the **Nagumo (1942) viability theorem**: a closed set $K = \{h \ge 0\}$ is forward-invariant under $\dot x = f(x)$ iff $f(x)$ lies in the contingent cone $T_K(x)$ for all $x \in \partial K$; the class-$\mathcal{K}$ relaxation $\dot h \ge -\alpha h$ is its asymptotic-set-invariance generalisation. Every safety-filter argument in this paper is a corollary of Nagumo (1942).
+The pairwise safety function is unchanged in form from v16:
+$$h_{ij}(r) := |r_i - r_j|^2 - r_{\text{safe}}^2,$$
+where $|\cdot|$ is the complex modulus (= Euclidean norm in $\mathbb{R}^2$ under the $r = x + iy$ identification). $h_{ij}$ is invariant under the ambient $SE(2)$ action (translations + rotations), so the construction inherits the Klein-Erlangen $O(2)$-equivariance of v16.
 
-The decision-variable coefficient is $2(x_i - x_j)$ - independent of $\hat\theta$. The constraint Jacobian is $\hat\theta$-independent. The QP Hessian (from the squared objective) is $2I$. The solver sees no $\hat\theta$-dependent matrix structure; only RHS coefficients vary, and bounded by $\theta_{\max}/\theta_{\min}$ [Wright 1997 §11].
+**Relative degree.** Differentiate along the closed loop:
+$$\dot h_{ij} \;=\; 2\,\Re\!\big((r_i - r_j)\,\overline{v_{a,i} - v_{a,j}}\big),$$
+which depends only on $(r, v_a)$ - *not* on the control $u_2$. Differentiating once more,
+$$\ddot h_{ij} \;=\; 2\,|v_{a,i} - v_{a,j}|^2 \;+\; 2\,\Re\!\big((r_i - r_j)\,\overline{\dot v_{a,i} - \dot v_{a,j}}\big),$$
+and substituting $\dot v_{a,i} = i\,\lambda_i u_{2,i} v_{a,i}$ (eq. 2.1):
+$$\ddot h_{ij} \;=\; 2\,|v_{a,i} - v_{a,j}|^2 + 2\,\lambda_i u_{2,i}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big) - 2\,\lambda_j u_{2,j}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big).$$
+$\ddot h_{ij}$ is *linear* in the controls $(u_{2,i}, u_{2,j})$, so $h_{ij}$ has **relative degree 2** w.r.t. $u_2$. (In v16 $h_{ij}$ had relative degree 1 because $\dot x = u$ injected $u$ at first derivative.) This necessitates the **higher-order CBF (HOCBF) formulation** [Xiao-Belta 2021].
 
-The feasible set:
-$$
-K(t,x) \;:=\; \big\{ u \in \mathbb{R}^d : c_{ij}(u; x, \hat\theta) \ge \delta_{ij}(t)\ \forall j \in \mathcal{N}_i^{\text{on}}(t),\ \|u\|_\infty \le u_{\max} \big\},
-$$
-with **hysteretic** active set: $\mathcal{N}_i^{\text{on}}(t)$ engages when $c_{ij} \le \varepsilon$ and disengages when $c_{ij} \ge 2\varepsilon$, where $\varepsilon \in [\delta_{ij}(t) + \text{tol}_{\text{QP}},\; 0.1\, r_{\text{safe}}^2]$. Hysteresis rules out Zeno chattering on each pair via Liberzon (2003) §1.2; the multi-surface dwell-time bound is Lemma 5.6 below.
+**HOCBF condition.** Define $\psi_{0,ij} := h_{ij}$ and $\psi_{1,ij} := \dot \psi_{0,ij} + \alpha_1 h_{ij}$. The HOCBF condition for forward invariance is
+$$\dot \psi_{1,ij} + \alpha_2\, \psi_{1,ij} \;\ge\; 0 \;\;\Longleftrightarrow\;\; \ddot h_{ij} + (\alpha_1 + \alpha_2)\,\dot h_{ij} + \alpha_1 \alpha_2\, h_{ij} \;\ge\; 0,$$
+where $\alpha_1, \alpha_2 > 0$ are linear class-$\mathcal{K}$ gains. By Nagumo (1942) extended via Xiao-Belta (2021), this implies $h_{ij}(t) \ge 0$ for all $t$, provided the initial condition satisfies $\psi_{0,ij}(0) \ge 0$ AND $\psi_{1,ij}(0) \ge 0$ - a strengthening of axiom (A3') (now requires $\dot h_{ij}(0) + \alpha_1 h_{ij}(0) \ge 0$).
 
-The closed-loop is the differential inclusion
+**Gauge-fixed constraint.** As in v16, multiply through by $\hat\theta_i = 1/\hat\lambda_i$ to remove the unknown-$\lambda_i$ dependency from the constraint *coefficient*:
 $$
-\dot x_i \in \Lambda_i\, u_i,\qquad u_i \in K(t,x),
+c_{ij}(u_{2,i}; r, v_a, \hat\theta) \;:=\; 2\, u_{2,i}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big)
+\;-\; 2\,\tfrac{\hat\theta_i}{\hat\theta_j}\, u_{2,j}^{\text{AC}}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big)
+\;+\; \hat\theta_i\, b_{ij}^{(0)} \;\ge\; \delta_{ij}(t),
 $$
-whose right-hand side is governed by the time-varying maximal monotone operator $A(t,x)$ given by the normal cone $N_{K(t,x)}$ [Rockafellar 1970; Brezis 1973 §2.1].
+where the $\hat\theta$-independent residual is
+$$b_{ij}^{(0)} \;:=\; |v_{a,i} - v_{a,j}|^2 + (\alpha_1 + \alpha_2)\,\Re\!\big((r_i - r_j)\,\overline{v_{a,i} - v_{a,j}}\big) + \tfrac{\alpha_1 \alpha_2}{2}\,h_{ij},$$
+and $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big)\, |v_a^{\max}|\, V_0\, u_{2,\max}^{\text{ref}}$ is the time-varying tightening from Lemma 5.2 lifted to the Dubins setting (vanishing as $P_i(t) \to 0$).
 
-### 3.2. The QP is the resolvent
+**Why this gauge-fixing still works:** the decision-variable coefficient $2\,\Im((r_i-r_j)\overline{v_{a,i}})$ is a function of $(r, v_a)$ only - independent of $\hat\theta$. The constraint Jacobian is therefore $\hat\theta$-independent, exactly as in v16; only RHS varies (bounded by $\theta_{\max}/\theta_{\min}$ [Wright 1997 §11]). The Klein-Erlangen $\mathbb{R}_{>0}$ scaling symmetry on $\hat\theta$ remains; the gauge choice is preserved across the dynamics upgrade.
 
-Pick a per-agent excitation signal $e_i^{\text{pe}}: \mathbb{R}_{\ge 0} \to \mathbb{R}^d$ with $\|e_i^{\text{pe}}\| \le A_e$, and project onto the freedom cone $F_i(t) := (\mathrm{span}\{2(x_i - x_j) : j \in \mathcal{N}_i^{\text{on}}\})^\perp$:
+**Feasible set per agent:**
 $$
-\tilde e_i^{\text{pe}}(t) := \mathrm{Proj}_{F_i(t)}\big[ e_i^{\text{pe}}(t) \big].
+K_i(t, r, v_a) \;:=\; \big\{ u_{2,i} \in \mathbb{R} : c_{ij}(u_{2,i}; r, v_a, \hat\theta) \ge \delta_{ij}(t)\ \forall j \in \mathcal{N}_i^{\text{on}}(t),\; |u_{2,i}| \le \dot\psi_{\max} \big\},
 $$
+with the same hysteretic active-set machinery as v16 (engagement at $c_{ij} \le \varepsilon$, disengagement at $c_{ij} \ge 2\varepsilon$, $\varepsilon \in [\delta_{ij}(t) + \mathrm{tol}_{\text{QP}}, 0.1\, r_{\text{safe}}^2]$; Liberzon 2003 §1.2). The saturation $|u_{2,i}| \le \dot\psi_{\max}$ encodes the maximum turn-rate (e.g., bank-angle limit for fixed-wing UAVs; cf. Maldonado-Naranjo–Annaswamy eq. 2).
 
-The control law is the metric projection of the QP target onto the feasible set, which **is** the Yosida resolvent $J_h^{(t,x)}$ at step size $h \to 0^+$:
+**Closed-loop.** The closed-loop is the differential inclusion
+$$
+\dot r_i = v_{a,i}, \qquad \dot v_{a,i} \in i\,\lambda_i\, K_i(t, r, v_a)\, v_{a,i},
+$$
+whose right-hand side is governed by the time-varying maximal monotone operator $A(t, r, v_a)$ given by the normal cone $N_{K_i}$ [Rockafellar 1970; Brezis 1973 §2.1]; see §3.2 for the QP-resolvent realisation.
+
+### 3.2. The QP is the (1-D) resolvent
+
+Pick a per-agent scalar excitation signal $e_i^{\text{pe}}: \mathbb{R}_{\ge 0} \to \mathbb{R}$ with $|e_i^{\text{pe}}| \le A_e$, and project onto the freedom cone $F_i(t) \subset \mathbb{R}$, which is either $\{0\}$ (when at least one pair is active) or $\mathbb{R}$ (when no pair is active) - the freedom-cone idea simplifies in 1-D control space, since the "constraint normal" is the scalar coefficient $\Im((r_i-r_j)\overline{v_{a,i}})$.
+
+The control law is the metric projection of the QP target onto the feasible interval $K_i$, which **is** the Yosida resolvent $J_h^{(t,r,v_a)}$ at step size $h \to 0^+$:
 $$
 \boxed{\;
-u_i^{\text{safe}}(t) \;=\; J_h^{(t,x)}\!\big(u_i^{\text{AC}}(t) + \tilde e_i^{\text{pe}}(t)\big)
-\;=\; \arg\min_{u \in K(t,x)} \; \big\|u - (u_i^{\text{AC}} + \tilde e_i^{\text{pe}})\big\|^2 \;+\; M\, s_{ij}^2,
+u_{2,i}^{\text{safe}}(t) \;=\; J_h\!\big(u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}\big)
+\;=\; \arg\min_{u_2 \in K_i(t,r,v_a)} \big(u_2 - (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}})\big)^2 \;+\; M\!\sum_{j \in \mathcal{N}_i^{\text{on}}} s_{ij}^2.
 \;}
 $$
-where $s_{ij} \ge 0$ is a slack variable on each CBF constraint, penalised by $M \gg 1$, ensuring feasibility under saturation [Ames-Xu-Grizzle 2014]. Default $M = 10^4$: empirically yields $\|s_{ij}\| \le 10^{-3}$ when not safety-critical and $\|s_{ij}\| \approx 10^{-1}$ on the boundary; larger $M$ degrades QP conditioning (see §3.4). As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
+This is a *scalar QP* per agent (decision variable $u_{2,i} \in \mathbb{R}$ plus slacks $s_{ij} \ge 0$); per-agent cost is $\mathcal{O}(|\mathcal{N}_i^{\text{on}}|)$, dominated by linear constraint setup. The slack penalty $M = 10^4$ is unchanged from v16. As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
+
+The Moreau-sweeping-process / Crandall-Liggett semigroup framework from v16 lifts unchanged - the relative-degree-2 nature shows up in $K_i$ being defined via $\ddot h$ rather than $\dot h$, but $K_i$ is still a closed convex (interval) set, so the Hilbert projection theorem and the Moreau (1977) sweeping process still apply.
 
 The continuous-time closed-loop trajectory is generated by **Moreau's (1977) sweeping process** $-\dot u(t) \in N_{K(t,x(t))}(u(t))$ on the time-varying convex set $K(t,x)$; for the autonomous specialisation (fixed mode $m$) this reduces to **Crandall-Liggett's (1971) exponential formula**:
 $$

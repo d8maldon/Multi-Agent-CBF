@@ -99,6 +99,19 @@
 
 ---
 
+## Pass 18 - 2026-05-03 - **NEW SCOPE: complex-Dubins multi-agent LOE-adaptive CBF (v16 -> v17)**
+**Audited:** N/A (scope-change declaration before implementation)
+**Verdict:** SCOPE-CHANGE acknowledged; loop-break heuristic resets per skill protocol Step N+4.
+**Trigger:** User invoked Maldonado-Naranjo + Annaswamy (arXiv 2504.08190, IEEE L-CSS 2025) "Adaptive Control of Dubins Vehicle in the Presence of Loss of Effectiveness." Paper uses complex state-space representation $r = x + iy$, $v_a = V_a e^{i\psi}$, dynamics $\dot r = v_a$, $\dot v_a = u v_a$ with bilinear complex control. Constant-speed simplification yields $\dot v_a = i \lambda u_2 v_a$ with LOE on turn-rate channel only.
+**Changes from v16:**
+- Per-agent state lifts from $x_i \in \mathbb{R}^d$ (single-integrator, point mass) to $(r_i, v_{a,i}) \in \mathbb{C}^2$ (Dubins, with heading via $\arg v_a$).
+- Unknown gain $\Lambda_i$ on the velocity channel becomes $\lambda_i$ on the turn-rate channel.
+- CBF $h_{ij} = |r_i - r_j|^2 - r_{\text{safe}}^2$ now has **relative degree 2** w.r.t. control $u_{2,i}$ (was relative degree 1 in v16). Requires HOCBF [Xiao-Belta 2021].
+- The Cramér-Rao identifiability framing (Pass 5/10) survives but $Q_i$ is now built from the projected complex regressor.
+**Prior passes:** Pass 12 SUBMIT-READY-for-LCSS verdict was on v16 single-integrator scope. Per loop-break heuristic + scope-change reset, that verdict is **superseded for v17**; v17 needs fresh math/engineering review under the new scope. v16 single-integrator results remain valid as the Pass 12 submission, just not the version the user is now pursuing.
+**Implementation order:** (i) paper §2 dynamics rewrite, (ii) paper §3 HOCBF, (iii) sim infrastructure for $\mathbb{C}^2$ state, (iv) paper §4-§8 lift, (v) figures + animation (now naturally meaningful since agents have real headings), (vi) tests + council re-review at v17.
+**Sign-off conditions:** none yet - this is a scope declaration. Math/engineering review reopens once v17 is in a reviewable state.
+
 ## Pass 17 - 2026-05-03 - close-out: comm-delay sweep + LaTeX draft + pytest suite
 **Audited:** all of `Multi-Agent-CBF/` end-to-end (paper + sim + figures + tests + LaTeX)
 **Verdict:** SUBMIT-READY (LCSS), with one engineering follow-up
