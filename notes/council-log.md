@@ -99,7 +99,20 @@
 
 ---
 
-**Convergence status as of v14:** 11 passes total; the most recent 3 council passes (Pass 7 SHIP IT, Pass 9 SHIP IT, Pass 10 SOUND-with-caveats now resolved) all signed off conditionally and conditions have been met. **Per loop-break heuristic, future passes default to SHIP IT** unless a genuinely blocking finding is raised under a specific new scope.
+## Pass 12 - 2026-05-02 - controls-expert-reviewer (v14 SUBMIT-READY)
+**Audited:** `notes/pe-aware-cbf-theorem.md` @ `e70c857` (v14)
+**Verdict:** SUBMIT-READY for IEEE-LCSS
+**Personas (this pass):** Krstić, Borrelli, Lavretsky (continuity from Pass 6)
+**Findings:** none. All 3 Pass 6 controls-engineering blockers verified HONOURED:
+- 🔴 K_T retune to 4: HONOURED ($K_T = 4$, $u_{\max} = 25$ in §8.3; gain margin $2.4 / 1.27 \approx 1.9\times$).
+- 🔴 N-scaling note: HONOURED (§3.3 real-time feasible up to $N \approx 50$ at $h_{\text{outer}} = 5$ ms).
+- 🔴 LCSS exposition rewrite: HONOURED (Abstract + §1 Problem statement present; sections renumbered 1-10 cleanly; Cramér-Rao reframing + Boyd-Sastry baseline in Position-vs-Prior table).
+**Sign-off conditions:** none - committed to no further additions.
+**Status of prior pass commitments:** Pass 6 (controls): HONOURED. Pass 7 (math), Pass 9 (math), Pass 10 (OG): HONOURED-via-Pass-11. **First pass executed under the new council-log protocol; protocol functioning as designed (skill auto-loaded log, classified findings as none-new, honoured Pass 6 commitment, defaulted to SUBMIT-READY per loop-break heuristic).**
+
+---
+
+**Convergence status as of v14:** 12 passes total. The most recent 4 council passes (Pass 9 SHIP IT, Pass 10 SOUND-with-caveats now resolved by Pass 11, Pass 11 fix-application, Pass 12 SUBMIT-READY) all converged. **All 3 council skills (math-god-mode, OG-math-experts, controls-expert-reviewer) have signed off conditionally on v14 with conditions met.** Per loop-break heuristic, future passes default to SHIP IT / SUBMIT-READY unless a genuinely blocking finding is raised under a specific new scope (e.g., "review for TAC submission" or "review under hardware-deployment scope").
 
 ---
 
