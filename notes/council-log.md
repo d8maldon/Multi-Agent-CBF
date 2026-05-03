@@ -99,6 +99,22 @@
 
 ---
 
+## Pass 14 - 2026-05-02 - paper patch v14 -> v15 (Pass 13 finding 1 fix) + sim re-verify
+**Audited:** `notes/pe-aware-cbf-theorem.md` @ uncommitted-v15 + `sim/run_paper_sim.py` re-run
+**Verdict:** SOUND with caveats (1 PENDING + 1 NEW)
+**Personas (this pass):** the simulation, plus paper-edit minimality check
+**Findings:**
+- ✅ [Pass 13 finding 1: HONOURED] §8.3 $\Lambda$ values changed to $(0.6, 0.9, 0.7, 0.8)$. All $1/\Lambda_i \in [1, 2]$. Spread $(\Lambda_{\min}, \Lambda_{\max}) = (0.6, 0.9)$ preserved, so Krstić's Pass 6 η-feasibility margin $K_T \Lambda_{\min} = 2.4$ unchanged. No cascading edits to §3-§7.
+- ✅ [Pass 13 finding 3: HONOURED] Safety violation gone: `h_min = 0.0000` (exactly at boundary, no penetration). The Λ correction also stabilised the early-transient dynamics enough that the slack penalty does its job.
+- 🟠 [Pass 13 finding 2: PENDING] Active fraction `mu_bar = 0.067` vs §8.2's stated 0.30 - unchanged by the Λ fix. This is a geometry-and-hysteresis mismatch (corners $\pm 3$ are far apart, agents only get close briefly during the swap). Two paths forward: (i) update §8.2 to report the empirically-measured `mu_bar` and recompute the predicted ratio with the correct value; (ii) tighten §3.1 hysteresis engagement (a `c_ij`-based threshold scaled to `α θ h` typical magnitude, not `0.05 r_safe^2`).
+- 🟠 [NEW] **Parameter convergence quality**: with $T_{\text{final}} = 4$ s, $\hat\theta$ for agents 1, 2, 3 all hover near 1.70 instead of their true $1/\Lambda \in \{1.11, 1.43, 1.25\}$. Only agent 0 ($1/\Lambda = 1.667$) converges within 2.4%. Likely cause: (i) the swap reaches steady state quickly (formation tracking time-constant $1/K_T = 0.25$ s, so 16 time-constants by $T = 4$ s; once $z = t$, $u^{\text{ref}} \to 0$ and PE-driven updates stall); (ii) shared-direction PE injection (same $\omega_1, \omega_2$ across all agents) produces nearly-identical-gain forcing on each. Mitigations: (i) make targets time-varying so the swap never completes (the v9 `oscillating_targets` proposal - a real scenario change, not a tuning patch); (ii) per-agent excitation frequencies. Both are §8.2 / §8.4 design choices the paper has not made yet. Recommend Pass 15 propose this as a paper edit.
+- ✅ [NEW] **The Birkhoff-Rao identifiability identity remains empirically valid.** Agent 0's measured ratio $\mathrm{tr}(Q_0)/\beta_0 = 1.50$ exceeds the §8.2 worst-case prediction $1 - 2\bar\mu/3 = 0.955$ - i.e. the rate is *better* than the worst-case (consistent with the Pass 8/9 observation that $u^{\text{ref}}$ for agent 0 is not always aligned with the worst eigenvector of $\bar P_0$). Other agents have lower ratios because their PE-driven updates haven't accumulated enough variance under the short-T scenario.
+**Sign-off conditions:** "Pass 13 finding 1 closed; finding 3 closed. Findings 2 + new convergence-quality finding remain open and are paper-side issues, not sim bugs."
+**Status of prior pass commitments:**
+- Pass 6 (controls): HONOURED (η-feasibility intact after Λ change).
+- Pass 12 (controls SUBMIT-READY): now uncondional once Pass 13 finding 1 is fixed in v15. Pass 13 findings 2 + 4 are open scope expansions, not gates on v15 submission-readiness.
+- Pass 13 finding 1: HONOURED.
+
 ## Pass 13 - 2026-05-02 - simulation (v14 paper-verbatim run)
 **Audited:** `notes/pe-aware-cbf-theorem.md` @ `e70c857` (v14) via `sim/` + `run_paper_sim.py`
 **Verdict:** SOUND with caveats

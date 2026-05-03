@@ -24,8 +24,11 @@ ALPHA = 10.0        # ZCBF class-K gain                        [§8.3]
 R_SAFE = 0.4        # pair-safe distance                       [§8.3]
 U_MAX = 25.0        # per-channel saturation                   [§8.3]
 
-# True unknown control effectiveness [§8.3: $\Lambda = (0.6, 1.4, 0.9, 1.6)$]
-LAMBDA_TRUE = np.array([0.6, 1.4, 0.9, 1.6])    # ground truth, hidden from controller
+# True unknown control effectiveness [§8.3 (v15): $\Lambda = (0.6, 0.9, 0.7, 0.8)$]
+# Chosen so that 1/Lambda_i ∈ [theta_min, theta_max] = [1, 2] for every agent.
+# (v14 used (0.6, 1.4, 0.9, 1.6); agents 2 + 4 had 1/Lambda outside the bounds —
+#  Pass 13 finding 1 in notes/council-log.md. Fixed in v15.)
+LAMBDA_TRUE = np.array([0.6, 0.9, 0.7, 0.8])    # ground truth, hidden from controller
 
 # Projection bounds [§8.3: $\theta_{min} = 1, \theta_{max} = 2$]
 THETA_MIN = 1.0
