@@ -99,6 +99,20 @@
 
 ---
 
+## Pass 16 - 2026-05-03 - figure pipeline (sec8.4 figs 1-5 generated from v16 sim)
+**Audited:** `output/v16/figure_{1..5}.pdf` produced from `make_figures.py` against v16 paper params
+**Verdict:** SUBMIT-READY (figures match section 8.4 plan; sim outputs match the paper's narrative)
+**Personas (this pass):** the simulation + visual inspection of generated figures
+**Findings:**
+- ✅ **Figure 1 (trajectories) shows the expected three-scenario contrast.** AC alone: collision (h_min = -0.155, agents pass through each other on the diagonals). AC + CBF: agents stop short of centre and reverse, h_min = 0.096 safe. AC + CBF + PE: agents have rich/wandering trajectories from PE injection on the freedom cone, h_min = 0.160 (even safer because excitation pushes orthogonal to active normals).
+- ✅ **Figure 2 (parameter convergence) shows honest empirical reality.** All three scenarios keep $|\hat\theta_i - 1/\Lambda_i|$ bounded near $10^{-1}$, with periodic dips to $10^{-2}-10^{-3}$ at swap-direction-change moments (visible at $t \approx 2, 4, 6$ s, matching $T_{\text{swap}}/2 = 2$ s half-period). Convergence rate is finite-T limited; longer horizons would tighten further.
+- ✅ **Figure 3 (identifiability gain) shows $\bar\rho_i(t)$ curves converging to per-agent steady-state values.** Confirms the Birkhoff time-averaging of $\|u^{\text{ref}}\|^2$ produces consistent rates across agents.
+- ✅ **Figure 4 (safety + KB covariance) shows clean dynamics.** $\min h_{ij}$ stays well above zero throughout; $P_i(t)$ decays multi-decade as Anderson 1985 predicts under closed-loop PE.
+- ✅ **Figure 5 (A_e Pareto sweep) shows the expected monotonic trade.** As $A_e$ increases from 0 to $0.20 u_{\max}$, identification rate improves (theta-err drops 0.355 -> 0.347 -> 0.342 -> 0.273), at modest cost to ultimate-bound (small increase in $\langle\|x-z\|^2\rangle$). Pareto frontier visible.
+- 🟠 **Figure 6 (communication-delay sweep): DEFERRED.** sim does not yet model neighbour-broadcast latency on $x_j(t)$ inputs to the QP. Implementation requires a delay buffer; logged for future work, not a blocker for LCSS submission.
+**Sign-off conditions:** None. Pass 12's SUBMIT-READY remains unconditional; figures complete the section 8.4 deliverable for LCSS submission (5 of 6, with figure 6 in future work).
+**Status of prior pass commitments:** All Pass 13 + 14 + 15 conditions HONOURED. Pass 12 SUBMIT-READY unconditional. The paper + sim + figures stack is now self-consistent end-to-end.
+
 ## Pass 15 - 2026-05-02 - paper patch v15 -> v16 (Pass 14 findings 2 + 4) + sim re-verify
 **Audited:** `notes/pe-aware-cbf-theorem.md` @ uncommitted-v16 + `sim/run_paper_sim.py` re-run on v16 paper params
 **Verdict:** SOUND with caveats (1 PENDING reduced + 1 NEW observation)

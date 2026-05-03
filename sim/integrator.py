@@ -38,7 +38,7 @@ class State:
 
 def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
           edges: tuple, A_e: float, omegas: np.ndarray, phases: np.ndarray,
-          d: int, solver_cache: dict) -> tuple:
+          d: int, solver_cache: dict, use_safety_filter: bool = True) -> tuple:
     """Compute u^safe and all derivatives at a state. Returns (deriv, info)."""
     N = state.x.shape[0]
     t_now = t_targets_fn(state.t)
@@ -71,11 +71,15 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
             e_pe = dyn.excitation_signal(state.t, omegas[i], phases[i], A_e)
             pe_proj[i] = F_proj @ e_pe
 
-        u_i_safe, slacks_i, _ = qpr.solve_qp(
-            i, state.x, state.theta_hat, u_AC, pe_proj[i],
-            state.pair_active, edges, delta_ij, solver_cache,
-        )
-        u_safe[i] = u_i_safe
+        if use_safety_filter:
+            u_i_safe, slacks_i, _ = qpr.solve_qp(
+                i, state.x, state.theta_hat, u_AC, pe_proj[i],
+                state.pair_active, edges, delta_ij, solver_cache,
+            )
+            u_safe[i] = u_i_safe
+        else:
+            # Bypass: u_safe = clipped u_AC + projected PE  (no CBF constraint)
+            u_safe[i] = np.clip(u_AC[i] + pe_proj[i], -pp.U_MAX, pp.U_MAX)
 
     # Plant: dx/dt = Lambda u_safe   [§2 eq line 59]
     dx = pp.LAMBDA_TRUE[:, None] * u_safe
@@ -92,9 +96,10 @@ def _eval(state: State, t_targets_fn: Callable[[float], np.ndarray],
 
 def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
               omegas: np.ndarray, phases: np.ndarray, d: int,
-              solver_cache: dict) -> tuple:
+              solver_cache: dict, use_safety_filter: bool = True) -> tuple:
     """One RK4 step over h_outer."""
     h = pp.H_OUTER
+    usf = use_safety_filter
 
     def shifted(s_base: State, ds: dict, dt: float) -> State:
         return State(
@@ -107,10 +112,10 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
             pair_active=s_base.pair_active,
         )
 
-    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
-    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
-    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
-    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
+    d1, info_1 = _eval(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
+    d2, _ = _eval(shifted(state, d1, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
+    d3, _ = _eval(shifted(state, d2, h / 2), t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
+    d4, _ = _eval(shifted(state, d3, h),     t_targets_fn, edges, A_e, omegas, phases, d, solver_cache, usf)
 
     new_state = State(
         t=state.t + h,
@@ -132,7 +137,8 @@ def _rk4_step(state: State, t_targets_fn, edges: tuple, A_e: float,
 
 def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
         t_targets_fn: Callable[[float], np.ndarray],
-        A_e: float, T_final: float, log_every: int = 1) -> dict:
+        A_e: float, T_final: float, log_every: int = 1,
+        use_safety_filter: bool = True) -> dict:
     """Run a full simulation from initial conditions.
 
     PE phases are drawn under seed pp.PE_SEED [§8.3].
@@ -164,7 +170,8 @@ def run(x0: np.ndarray, z0: np.ndarray, edges: tuple,
 
     t_start = time.time()
     for step in range(n_steps):
-        state, info = _rk4_step(state, t_targets_fn, edges, A_e, omegas, phases, d, solver_cache)
+        state, info = _rk4_step(state, t_targets_fn, edges, A_e, omegas, phases,
+                                d, solver_cache, use_safety_filter)
 
         if step % log_every == 0:
             log_t.append(state.t)
