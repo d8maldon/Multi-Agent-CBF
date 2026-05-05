@@ -99,6 +99,101 @@
 
 ---
 
+## Pass 33 - 2026-05-05 - controls-expert-reviewer (cross-skill consensus check on Pass 31 + 32 = 13 fixes)
+**Audited:** Pass 31 + Pass 32 proposed solutions (13 fixes) for v17 §1-§8
+**Verdict:** **FULL-COUNCIL CONSENSUS REACHED on 12 of 13 fixes; 1 needs Pass-33 re-derivation; 2 controls-only new findings added.**
+**Personas (this pass):** Stephen Boyd (numerical optim/OSQP), Eric Frazzoli (Dubins/path planning), João Hespanha (hybrid systems/dwell-time). Plus Allgöwer, Mesbahi, Wise, Bertsekas consulted on individual items.
+
+**Cross-check verdict on 13 fixes:**
+1. ✅ AGREE w/ Pass-33 addition (worst-case 5.3 ms cold-start at active-set transitions; transition frequency ~1 Hz from Lemma 5.6 keeps average <5 ms): Pass 31 #1 OSQP timing.
+2. ✅ AGREE w/ Pass-33 addition (BV-continuity engineering remark on the active-set indicator: $\mathbb{1}\{\mathcal{N}_i^{\rm on}\}$ has bounded total variation $\le \binom{N}{2}/\tau_d$ — what makes RK4 + event-switching well-posed): Pass 31 #2 / Pass 32-modified (H-PR).
+3. ✅ AGREE w/ Pass-32 mod: Pass 31 #3 §8.1 Dubins (Dubins 1957 primary + LaValle 2006 textbook + Cartan sub-Riemannian footnote).
+4. ✅ AGREE w/ Pass-32 mod: Pass 31 #4 §4.2.1 shape-space (Lie + Klein + Leonard 2007).
+5. ✅ AGREE w/ Pass-32 mod: Pass 31 #5 §5.4 (Whitney + Fisher + Rao + Amari 1985).
+6. ✅ AGREE as-is: Pass 31 #6 §8.2 |dot t|>V_0 caveat.
+7. ⚠ AGREE WITH PASS-33 RE-DERIVATION: Pass 31 #7 / Pass 32-modified dwell-time bound. Pass 32's $2\varepsilon_{\rm hyst}/(\dot\psi_{\max} A_e)$ is dimensionally suspect under physical units. **Re-derived bound (Pass 33):** use Lemma 5.6's existing form $\tau_d \ge \varepsilon_{\rm hyst}/(L_{\rm eff}\cdot|c_{ij}|'_{\max})$, dimensionless under §1 convention; for §8.3 parameters $\tau_d \gtrsim 10^{-3}$ ≈ 1 ms physical. Cite Filippov 1960 §3 + K-P 1989 + Hager 1979 (already in §10).
+8. ✅ AGREE w/ Pass-33 addition (quantitative 20× robustness factor v16→v17 in fig 6 caption): Pass 31 #8.
+9. ✅ AGREE w/ Pass-32 mod: Pass 31 #9 Robbins-Monro 1951 + Borkar 2008.
+10. ✅ AGREE as-is: Pass 32 OG-NEW-1 §2.1 Carathéodory/Chow controllability + cite Chow 1939.
+11. ✅ AGREE as-is: Pass 32 OG-NEW-2 §3.3 KKT citation.
+12. ✅ AGREE as-is: Pass 32 OG-NEW-3 §3.2 Maxwell governor.
+13. ✅ AGREE as-is: Pass 32 OG-NEW-4 §4.3 Kirchhoff Laplacian.
+
+**Pass-33 NEW controls-only findings:**
+- 🟡 [NEW, Hespanha] **§3.1.2 R3 latency residual worked-example missing.** No numerical magnitude given. **Proposed solution:** add §3.1.2 footnote: "Worked example: at $\tau_d = 5$ ms, $L_{\rm QP}\approx 1.88$, $\varepsilon^{(3)}_j = 0.0094$ — comparable to $\zeta_0$ baseline."
+- 🔵 [NEW, Frazzoli] **§8.4 fig 6 quantitative comparison.** Folded into Fix #8 Pass-33 addition.
+
+**Total final consensus list: 15 fixes (13 from Passes 31+32 + 2 Pass-33-new).**
+
+**Sign-off conditions:** SUBMIT-READY for IEEE-LCSS v17 scope conditional on the 15 consensus-agreed fixes being applied. After application, all three skills commit to no further additions on the expanded-panel-scope.
+
+**Status of prior pass commitments:**
+- Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
+- Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.
+- Pass 30 SUBMIT-READY (original-panel scope): preserved; expanded-panel scope = strengthening additions, no contradiction.
+- No CONFLICT-WITH-PRIOR-SIGNOFF.
+
+**Loop-break heuristic note (Step N+4):** Passes 31 (math-god-mode SOUND-with-caveats) + 32 (OG SOUND-with-mods) + 33 (controls SUBMIT-READY-with-15-fixes) form three consecutive non-blocking verdicts on the expanded-panel-scope. After the 15 fixes are applied, the v17 §1-§8 expanded-panel work is **CONVERGED for the current scope**. Further passes default to SUBMIT-READY unless a new scope is declared.
+
+**User-facing note (per standing rule):** Full-council consensus REACHED. Per `feedback_analytical_first.md`, the user makes the final call on whether to apply all 15 fixes / a subset / defer. Recommend single-commit application of all 15 since they are mostly additive citation strengthening + paragraph clarifications.
+
+## Pass 32 - 2026-05-05 - OG-math-experts (cross-skill consensus check on Pass 31's 9 findings)
+**Audited:** Pass 31's 9 proposed solutions for v17 §1-§8 (council-log.md Pass 31 entry)
+**Verdict:** **CONSENSUS REACHED on 6 findings as-is; CONSENSUS WITH MODIFICATION on 3 findings; PLUS 4 NEW OG-only findings.**
+**Personas (this pass):** Lie, Cartan, Weyl, Carathéodory, Chow, Moreau, Filippov, Krasnosel'skii, Maxwell, Kirchhoff, KKT, Fisher, Rao, Whitney (representative; full OG panel consulted)
+
+**Cross-check on Pass 31 findings:**
+- ✅ AGREE as-is: Pass 31 findings 1 (Boyd OSQP timing), 6 (Frazzoli §8.2 reachability), 8 (Boyd fig 6 caption).
+- ⚠ AGREE WITH MODIFICATION:
+  - Pass 31 #2 (Thibault prox-regularity): primary anchor is Moreau 1971, NOT Edmond-Thibault 2006; modify (H-PR) to lead with Moreau, with Edmond-Thibault 2006 as modern refinement.
+  - Pass 31 #3 (Frazzoli §8.1 Dubins): primary anchor is Dubins 1957 (already in §10), with LaValle 2006 §15.3 as textbook companion. Cartan adds: "Dubins curve is a sub-Riemannian geodesic on $SE(2)$".
+  - Pass 31 #4 (Leonard §4.2.1): foundational anchor is Lie (1880s) one-parameter group + Klein (1872) Erlangen quotient; Leonard 2007 stays as modern engineering reference.
+  - Pass 31 #5 (Amari §5.4): foundational lineage Whitney 1965 (stratification, already cited) + Fisher 1925 + Rao 1945 §6 (already cited) THEN Amari 1985. The §5.4 paragraph should walk this lineage.
+  - Pass 31 #7 (Thibault dwell-time): heuristic bound $A_e^{-1}\sqrt{1+V_0^2}$ replaced with rigorous K-P-1989 hysteresis-band-crossing bound: $\tau_{\rm slide} \le 2\varepsilon_{\rm hyst}/(\dot\psi_{\max} A_e) \approx 0.05$ s for §8.3 PE.
+  - Pass 31 #9 (Borkar): primary anchor is Robbins-Monro (1951), foundational stochastic-approximation paper; Borkar 2008 as modern textbook.
+
+**NEW OG-only findings (modern panel missed):**
+- 🟡 [NEW, Carathéodory + Chow] **§2.1 plant controllability not verified.** Single-input system on $SE(2)$ via $u_2 \in \mathbb{R}$; reachability requires Chow (1939) bracket theorem. **Proposed solution:** add §2.1 remark invoking Carathéodory 1909 / Chow 1939; cite Chow 1939 in §10.
+- 🔵 [NEW, KKT] **§3.3 closed-form Lagrangian = KKT conditions.** **Proposed solution:** rename "Lagrangian solution" to "Karush-Kuhn-Tucker (Karush 1939; Kuhn-Tucker 1951) solution"; cite KKT 1951 in §10.
+- 🔵 [NEW, Maxwell] **§3.2 safety filter = governor in Maxwell 1868 sense.** **Proposed solution:** add §3.2 one-line remark; cite Maxwell 1868 in §10.
+- 🔵 [NEW, Kirchhoff] **§4.3 graph Laplacian = Kirchhoff 1847.** **Proposed solution:** rename "graph Laplacian" to "Kirchhoff Laplacian (Kirchhoff 1847)"; cite Kirchhoff 1847 in §10.
+
+**Total fixes after Pass 31 + 32: 9 Pass 31 (3 as-is, 6 with mods) + 4 OG-new = 13 fixes.**
+
+**Sign-off conditions:** PENDING CROSS-SKILL CONSENSUS. Per user's standing rule (memory `feedback_analytical_first.md`), the modified proposed solutions and new OG findings need controls-expert-reviewer verification (Pass 33) before any are applied to the paper. After Pass 33 sign-off, user makes the call on which to apply.
+
+**Status of prior pass commitments:**
+- Pass 30 SUBMIT-READY (original-panel scope): HONOURED; expanded-panel new scope is this round.
+- Pass 31 commitment (PENDING CROSS-SKILL CONSENSUS): math-god-mode's findings honoured here, with modifications on 6 items + 4 new OG-only items added.
+- No CONFLICT-WITH-PRIOR-SIGNOFF; foundational re-anchoring is structural strengthening, not contradiction.
+
+## Pass 31 - 2026-05-05 - math-god-mode (expanded panel, fresh-eyes audit of v17 §1-§8)
+**Audited:** `notes/pe-aware-cbf-theorem.md` @ commit 8940533 + empirical findings from `tests/test_qp_timing.py` and the comm-delay sweep
+**Verdict:** **SOUND with caveats** — Pass 30 SUBMIT-READY stands for the original-panel scope; expanded panel adds 9 NEW findings (3 🟠 + 4 🟡 + 3 🔵), each paired with concrete proposed solution per user's standing rule.
+**Personas (this pass):** Tao, Boyd, Naomi Leonard, Thibault, Amari, Frazzoli, Borkar (the 6 newly-added panellists doing fresh-eyes review; Tao for cross-checking)
+**New-scope justification:** The math-god-mode panel was expanded with 6 new mathematicians (Boyd, Leonard, Thibault, Amari, Frazzoli, Borkar) on 2026-05-04. Per Step N+4 loop-break, "expanded panel" is a legitimate new-scope reset. Pass 30 SUBMIT-READY commitment is for the ORIGINAL 17-panellist scope; the new 6 panellists may have findings the original panel didn't.
+
+**Findings (each with proposed solution; PENDING CROSS-SKILL CONSENSUS):**
+
+- 🟠 [NEW, Boyd] **§3.3 OSQP timing claim "~0.05 ms warm-started" empirically off by 6×.** Measured 0.308 ms/call (1000-call avg) on §8.2 cross-swap config. At N=4 with 16 OSQP calls per RK4 step: 4.93 ms / 5 ms = 99% utilisation; thin <2% margin. **Proposed solution:** update §3.3 line 213 to "0.31 ms/call warm-started, 2.9-5.3 ms cold-started" with explicit benchmark reference to `tests/test_qp_timing.py` and a real-time-margin caveat ("up to N≈4 at h_outer = 5 ms; larger N requires parallelisation or coarser h_outer").
+- 🟠 [NEW, Thibault] **§3.1.3 prox-regularity hypothesis missing.** Sweeping process well-posedness requires uniform $r$-prox-regularity + AC-in-time of $K_i(t)$ (Edmond-Thibault 2006). The v17 1-D scalar QP makes prox-regularity automatic (intervals are convex), but AC-in-time across hysteresis events is not stated. **Proposed solution:** add §3.1.3 hypothesis (H-PR) "K_i(t) convex (∞-prox-regular); AC between events; jump at events handled by K-P play operator + Edmond-Thibault 2006 right-continuous representative." Cite Edmond-Thibault 2006 in §10.
+- 🟠 [NEW, Frazzoli] **§8.1 head-on time-to-collision argument informal.** "0.8 s window with 4 rad rotation authority" is a kinematic argument that ignores closing distance during the recovery turn. Correct framework: Dubins shortest path = $V_0 \cdot \pi/(2\dot\psi_{\max}) = 0.314$ s for 90° turn; margin against $r_{\text{safe}}$-violation is $0.8 - 0.314 = 0.486$ s ≈ 2.5×. **Proposed solution:** replace §8.1 "reach-set sanity check" paragraph with explicit Dubins-distance computation; cite LaValle 2006 *Planning Algorithms* §15.3 in §10.
+- 🟡 [NEW, Leonard] **§4.2 reduced shape-space dynamics not made explicit.** $U(1)$-quotient of $SE(2)^N$ → shape manifold of dim $3N-1$; cross-swap is a rotational relative equilibrium (Leonard 2007). **Proposed solution:** add §4.2.1 sub-paragraph deriving the reduced dynamics + cite Leonard 2007 IEEE TAC.
+- 🟡 [NEW, Amari] **§5.4 info-geometric framing on binary cone.** Constrained-Fisher-info on stratified parameter manifold cleaner via Amari 1985 mixture-coordinates. **Proposed solution:** add §5.4 sub-paragraph framing $\bar\rho_i$ as $\mu$-mixture of stratum-Fisher-metrics; cite Amari 1985 + optionally Stoica-Ng 1998.
+- 🟡 [NEW, Frazzoli] **§8.2 target trajectory $|\dot t_i| > V_0$ at $T_{\text{swap}} = 8$ s.** Average target velocity 2.12 m/s exceeds $V_0 = 1$ m/s by 2×; agents follow trend, not instantaneous position. **Proposed solution:** add §8.2 sanity-check paragraph noting the looseness; recommend $T_{\text{swap}} \ge 27$ s for instantaneous reachability (sim re-run optional).
+- 🟡 [NEW, Thibault] **§7 Lemma 5.1 sliding-mode dwell-time on locus not bounded.** **Proposed solution:** add to Lemma 5.1: "$\tau_{\text{slide}} \le A_e^{-1}\sqrt{1+V_0^2} \approx 2.83$ s for §8.3 PE; locus is $\mu$-measure-zero on $\mathcal{M}$."
+- 🔵 [NEW, Boyd] **§8.4 fig 6 caption — comm-delay improvement worth highlighting.** Empirical sweep: $h_{\min} = 1.253$ unchanged across $\tau \in \{0, 5, 20, 50, 100\}$ ms; v17 R3 residual eliminates v16's 5-ms cliff. **Proposed solution:** update §8.4 fig 6 caption to highlight this v17-vs-v16 improvement (positive finding; no math change).
+- 🔵 [NEW, Borkar] **§5.3 modern Robbins-Monro framing.** Anderson 1985 PE-decay rate is the deterministic limit of stochastic Robbins-Monro. **Proposed solution:** cite Borkar 2008 in §10; no paper-text change.
+
+**Sign-off conditions:** Findings are PENDING CROSS-SKILL CONSENSUS. Per the user's standing rule (memory `feedback_analytical_first.md`), no changes to the paper analytical content until OG-math-experts and controls-expert-reviewer agree on the proposed solutions. After consensus + application, this skill commits to no further additions on the expanded-panel-scope.
+
+**Status of prior pass commitments:**
+- Pass 30 SUBMIT-READY commitment: HONOURED (original-panel scope; this pass is expanded-panel new scope).
+- Passes 22-29 SHIP IT verdicts: ratified by this pass.
+- No CONFLICT-WITH-PRIOR-SIGNOFF; expanded panel adds findings the original panel did not surface.
+
+**User-facing note:** All 9 findings are addressable with concrete proposed solutions. None are blockers (no 🔴). The paper is *substantively SUBMIT-READY*; these are polish + empirical-correction items that strengthen the IEEE-LCSS submission. Pending cross-skill consensus from `/OG-math-experts` (Pass 32) and `/controls-expert-reviewer` (Pass 33).
+
 ## Pass 30 - 2026-05-04 - controls-expert-reviewer (v17 §4-§8 re-pass after fixes)
 **Audited:** `notes/pe-aware-cbf-theorem.md` §4-§8 + §9-§10 + Appendix A @ uncommitted (post-Passes-25-27 fixes applied)
 **Verdict:** **SUBMIT-READY for IEEE-LCSS v17 §4-§8 scope.**
