@@ -168,14 +168,19 @@ def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
 def closed_form_two_agent(i: int, j: int, r: np.ndarray, v_a: np.ndarray,
                           theta_hat: np.ndarray, u_2_AC: np.ndarray,
                           pe_projected_i: float, delta_val: float) -> float:
-    """Closed-form Lagrangian solution for N=2, single active pair [§3.3 v17].
+    """Closed-form Karush-Kuhn-Tucker (KKT) solution for N=2, single active pair
+    [paper §3.3 v17.1; Karush 1939 dissertation; Kuhn-Tucker 1951
+    Berkeley Symp. on Math. Statist. and Probab.].
 
     Used as a unit test for the OSQP wrapper before scaling to N >= 3.
 
-    For agent i with one active CBF constraint vs j and no saturation binding:
-        u_{2,i}^{safe} = (u_{2,i}^{AC} + tilde_e_i^{pe})  +  mu_ij * a_{ii}
-        mu_ij = max(0, (delta - c(u_AC + e_pe)) / a_ii^2)
-    where c(*) is the LHS of the gauge-fixed HOCBF constraint at u = u_AC + e_pe.
+    For agent i with one active CBF constraint vs j and no saturation binding,
+    the KKT conditions give the closed-form solution:
+        u_{2,i}^{safe} = (u_{2,i}^{AC} + tilde_e_i^{pe})  +  mu_ij^* * a_{ii}
+        mu_ij^* = max(0, (delta - c(u_AC + e_pe)) / a_ii^2)
+    where mu_ij^* >= 0 is the KKT multiplier for the inequality constraint,
+    satisfying complementary slackness mu_ij^* * (c_ij - delta_ij) = 0,
+    and c(*) is the LHS of the gauge-fixed HOCBF constraint at u = u_AC + e_pe.
 
     Returns u_{2,i}^{safe} (NOT clipped to saturation; caller clips if needed).
     """

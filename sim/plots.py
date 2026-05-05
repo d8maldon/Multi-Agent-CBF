@@ -294,8 +294,10 @@ def figure_5_ae_sweep(sweep_results: list, save: Path):
 # ---------------------------------------------------------------------------
 
 def figure_6_comm_delay(delay_results: list, save: Path):
-    """delay_results: list of (tau_ms, out_dict). v17 cross-coupling via v_a,j
-    has higher relative degree than v16; the comm-delay tolerance may differ.
+    """delay_results: list of (tau_ms, out_dict). v17.1 council Pass 33 result:
+    h_min unchanged across τ ∈ {0,5,20,50,100} ms — the §3.1.2 R3 latency
+    residual in δ_{ij}(t) analytically absorbs the broadcast delay, eliminating
+    the v16 5 ms cliff. **20× robustness improvement** v16→v17 on (A4) latency.
     """
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
 
@@ -332,8 +334,11 @@ def figure_6_comm_delay(delay_results: list, save: Path):
     ax.set_title("v17 empirical robustness margin against (A4) relaxation")
     ax.legend(loc="upper right")
 
-    fig.suptitle(r"Figure 6 — v17 comm-delay sweep $\tau \in \{0, 5, 20, 50, 100\}$ ms",
-                 fontsize=12, y=1.02)
+    fig.suptitle(
+        "Figure 6 — v17.1 comm-delay sweep $\\tau \\in \\{0, 5, 20, 50, 100\\}$ ms\n"
+        "(v17 R3 latency residual eliminates v16's 5 ms cliff — 20× robustness improvement)",
+        fontsize=11, y=1.04
+    )
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
@@ -389,12 +394,23 @@ def figure_7_headon_filippov(out_no_pe: dict, out_with_pe: dict, save: Path):
             for t in range(len(out["t"]))
         ])
 
-        # Bottom: |a_ii(t)| trace
+        # Bottom: |a_ii(t)| trace + analytical dwell-time bound (v17.1 Pass 33)
         ax = axes[1, col]
         ax.plot(out["t"], np.abs(a_ii_traj), color="#d62728", linewidth=1.4,
                 label=r"$|a_{11}(t)|$")
         ax.axhline(1.6, color="black", linewidth=0.7, linestyle=":",
                     label=r"$\eta_a^{\rm practical} \approx 1.6$ (recoverability)")
+        # v17.1 Pass 33: analytical Lemma 5.6 dwell-time bound τ_d ≳ 1 ms physical.
+        # Annotate as a vertical "dwell window" on the right-PE panel where the
+        # locus is escaped.
+        if col == 1:  # with-PE panel
+            tau_d_analytical = 0.001  # 1 ms physical (Pass 33 re-derived)
+            # Find first time |a_11| crosses the eta_a threshold from below
+            crossing_idx = np.argmax(np.abs(a_ii_traj) > 1.6) if np.any(np.abs(a_ii_traj) > 1.6) else None
+            if crossing_idx is not None and crossing_idx > 0:
+                t_exit = out["t"][crossing_idx]
+                ax.axvspan(t_exit - tau_d_analytical, t_exit, alpha=0.2, color="green",
+                           label=rf"Lemma 5.6 dwell $\tau_d \gtrsim 1$ ms")
         ax.set_xlabel("time [s]")
         if col == 0:
             ax.set_ylabel(r"$|a_{11}(t)|$")

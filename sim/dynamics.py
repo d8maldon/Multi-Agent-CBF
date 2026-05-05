@@ -4,6 +4,14 @@ Each function is annotated with the v17 paper section / equation it implements.
 State per agent: (r_i, v_{a,i}) in C^2. Position r = x + iy; velocity-along-
 heading v_a = V_a exp(i psi). Constant-speed simplification: |v_a| = V_0.
 The only effective control per agent is the scalar real turn rate u_2 in R.
+
+Controllability (paper §2.1; Carathéodory 1909 / Chow 1939). The single-input
+plant dot v_a = i*lambda*u_2*v_a is reachable on SE(2) via u_2 in R: the Lie
+bracket of forward-motion (X_1 = v_a*partial_r) and turning (X_2 = i*v_a*u_2*
+partial_{v_a}) generates the missing lateral direction. Chow's theorem (1939)
+on bracket-generating systems then gives global controllability on the
+constant-speed manifold |v_a| = V_0. This is the foundational reachability
+that underlies the §3 safety filter and §5 identifiability constructions.
 """
 
 from __future__ import annotations
@@ -23,6 +31,14 @@ def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple) -> np
     Lifted from v16's real-vector formation feedback to complex state. Returns
     the desired *complex velocity* (NOT a turn-rate yet — that conversion
     happens in `reference_turn_rate` below).
+
+    The formation feedback acts via the **Kirchhoff Laplacian** L_G (Kirchhoff
+    1847) of the communication graph, encoded here through the per-agent
+    neighbour sums. The proportional gain K_T contributes K_T*I to the formation
+    matrix; the coupling gain K_F contributes K_F*L_G. The smallest non-zero
+    eigenvalue lambda_2(L_G) is the Fiedler 1973 algebraic connectivity, the
+    effective spring constant for formation cohesion. See §4.3 Step (b)
+    Hilbert-Courant min-max for the analytical role of L_G.
     """
     N = z.shape[0]
     v_des = np.zeros(N, dtype=complex)
