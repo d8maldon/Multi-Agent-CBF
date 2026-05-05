@@ -42,15 +42,22 @@ A team of $N$ agents must reach a target formation $\{t_i\}_{i=1}^N$ in $\mathbb
 
 ## Axioms
 
-- **(A1) Bounded admissible parameter set.** $\Lambda_i \in [\Lambda_{\min}, 1]$, $\Lambda_{\min} > 0$, time-invariant. Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ enforced via the Krstić-Kanellakopoulos-Kokotović (1995) smooth projection. Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\Lambda$ for the QP to remain feasible (see §7).
+- **(A1) Bounded admissible parameter set.** $\lambda_i \in [\lambda_{\min}, 1]$, $\lambda_{\min} > 0$, time-invariant (LOE on the turn-rate channel; cf. §2.1). Estimate $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ with $\theta_{\min} \le 1/\lambda_i \le \theta_{\max}$, enforced via clip-projection $\hat\theta_i \mapsto \min(\theta_{\max}, \max(\theta_{\min}, \hat\theta_i))$ on the gradient flow. (Earlier drafts cited the Krstić-Kanellakopoulos-Kokotović 1995 §6 *smooth* projection, which gives $\hat\theta_i \in C^1$; the simulation uses clipping for simplicity. Where the Lyapunov calculation in §4 needs differentiability at the boundary, we use the Clarke generalised derivative — consistent with the Filippov framing of §3.1.) Required prior tightness: $\theta_{\max}/\theta_{\min} \le \kappa_\lambda$ for the QP to remain feasible (see §7).
 - **(A2) Bounded admissible reference and connected graph.** $\{z_i, \dot z_i, t_i, \dot t_i\}$ uniformly bounded by $u_{\max}^{\text{ref}}$; $\mathcal{G}$ connected. Define $D_{\max} := 2\big(\sup_i \|z_i\|_\infty + R_{\text{UUB}}\big) + r_{\text{safe}}$, where $R_{\text{UUB}} = \sqrt{2 V(0)}$ is the UUB radius from Lemma 5.3 (the chain $D_{\max}$-needs-UUB is non-circular: $V(0)$ is a *datum*, not a closed-loop quantity).
 - **(A2') Closed-loop persistence of excitation.** The target trajectory $t_i(t)$ is non-stationary in the sense $\beta_1 I \preceq T_0^{-1} \int_t^{t+T_0} \dot t_i \dot t_i^\top\, d\tau$ for some $\beta_1, T_0 > 0$. Combined with the MRAC error decay (Lemma 5.3) this guarantees $u_i^{\text{ref}}$ remains PE on the closed loop, hence the Kalman-Bucy covariance $P_i(t) \to 0$ exponentially. (Without (A2'), use the stochastic variant $Q^{\text{KB}} > 0$ in §2 and replace the $P_i \to 0$ claim with $P_i \to P_i^*$.)
-- **(A3') Initial strict safety with margin.** There exists $\zeta > 0$ such that $h_{ij}(x(0)) \ge \delta_{ij}(0) + \zeta$ for all $i \ne j$, where $\delta_{ij}(0) = 2 D_{\max}(\sqrt{P_i(0)}/\theta_{\min})(\sqrt{d}\,u_{\max} + \theta_{\max} u_{\max}^{\text{ref}})$ is the initial CBF tightening from Lemma 5.2. Equivalently, $\delta_{ij}(0) \le \tfrac12 r_{\text{safe}}^2$ as a precondition on the data; this is what the prior tightness $\kappa_\Lambda$ buys.
-- **(A4) Neighbour broadcast.** Each agent $i$ has continuous-time access to $\{x_j(t), \hat\theta_j(t) : j \in \mathcal{N}_i\}$. (Discrete / event-triggered relaxations: separate paper.)
-- **(A5) Active-set non-saturation.** On the closed-loop invariant set $\mathcal{M}$, $|\mathcal{N}_i^{\text{on}}(t)| < d$ for $\mu$-a.e. $t$, where $\mu$ is the invariant measure from §5. Equivalently, no agent is simultaneously safety-active against $d$ or more neighbours; freedom cone $F_i$ is non-trivial $\mu$-a.e. Holds generically when $\deg(\mathcal{G}) < d$; otherwise must be checked numerically per scenario.
-- **(A5') Minimum subtended angle (only required for $d \ge 3$).** There exists $\theta_{\min} > 0$ such that for any agent $i$ with $\ge 2$ active neighbours $j, k \in \mathcal{N}_i^{\text{on}}$, the angle $\angle j i k \ge \theta_{\min}$ holds $\mu$-a.e. Implies $\sigma_{\min}^{\text{geom}}(G_i) \ge \sin(\theta_{\min}/2) > 0$, which keeps $L_{\text{QP}}^*$ (§3.4) finite. **Vacuous for $d = 2$**: (A5) restricts to at most one active constraint, so $G_i$ is a single row and $\sigma_{\min}^{\text{geom}} = 1$ automatically. All worked examples in §8 are $d = 2$.
+- **(A2'') Free-time dwell under HOCBF active-set switching.** When an active pair engages on the scalar control $u_{2,i} \in \mathbb{R}$, the freedom cone $F_i \subset \mathbb{R}$ collapses to $\{0\}$ and the PE projection vanishes. Closed-loop PE is preserved if the cumulative *free-time measure* — time during which $\mathcal{N}_i^{\text{on}}(t) = \emptyset$ — is bounded below: there exist $T_0', \tau_{\min}^{\text{free}} > 0$ such that $\mu(\{t \in [t_0, t_0+T_0'] : \mathcal{N}_i^{\text{on}}(t) = \emptyset\}) \ge \tau_{\min}^{\text{free}}$ uniformly in $t_0$. Verified numerically on the §8 cross-swap (most active episodes are short, $\le 1$ s, with multi-second free-time intervals between).
+- **(A3'') Initial conditions for HOCBF + relative-degree-drop guard.** Strengthened from the v16 (A3') to incorporate the higher-order CBF requirements:
+  1. $h_{ij}(r(0)) \ge \delta_{ij}(0) + \zeta$ for all $i \ne j$, with $\zeta > 0$ (initial barrier margin).
+  2. $\psi_{1,ij}(0) := \dot h_{ij}(0) + \alpha_1 h_{ij}(0) \ge 0$ for all $i \ne j$ (sub-CBF $\psi_1$ initial condition; required by Xiao-Belta 2021 Thm 2 / Aubin-Cellina 1984 §5.1 second-order viability).
+  3. $|a_{ii}(t, r, v_a)| \ge \eta_a > 0$ for all $i$, $j \in \mathcal{N}_i^{\text{on}}(t)$, on the closed-loop invariant set $\mathcal{M}$, where $a_{ii}(r, v_a) := 2\,\Im((r_i-r_j)\overline{v_{a,i}})$ is the HOCBF coefficient of $u_{2,i}$ (relative-degree-drop guard; quantitative recoverability — see §3.1.1).
+  
+  The $\delta_{ij}(0)$ on item 1 is the v17 form derived in §3.1.2 (aggregating estimator residual, cross-term residual, and saturation gap). Equivalently, $\delta_{ij}(0) \le \tfrac12 r_{\text{safe}}^2$ as a precondition on the data; this is what the prior tightness $\kappa_\lambda$ + recoverability margin $\eta_a$ buys.
+  
+  *Off-locus regularity.* On the relative-degree-drop locus $D_{ij} := \{(r, v_a) : a_{ii}(r, v_a) = 0\}$, item 3 is violated and the differential inclusion is non-Lipschitz. Adopt Filippov (1960) regularisation: the closed-loop solution is interpreted via the convex-hull set-valued vector field, yielding a sliding-mode trajectory along $D_{ij}$ that is absolutely continuous (§3.1).
+- **(A4) Neighbour broadcast.** Each agent $i$ has continuous-time access to $\{r_j(t), v_{a,j}(t), \hat\theta_j(t), u_{2,j}^{\text{safe}}(t^-) : j \in \mathcal{N}_i\}$. The broadcast of $u_{2,j}^{\text{safe}}$ is of the *most-recent past* value (notation $t^-$) — this avoids algebraic loops in the distributed QP. The Pass 21 council noted that the v16 derivation used $u_{2,j}^{\text{AC}}$ (assumed-correct) instead of $u_{2,j}^{\text{safe}}$; v17 broadcasts the safety-filtered value to make the cross-term coupling self-consistent across the network. (Discrete / event-triggered relaxations: separate paper.)
+- **(A5) Active-set non-saturation.** On the closed-loop invariant set $\mathcal{M}$, $|\mathcal{N}_i^{\text{on}}(t)| \le 1$ for $\mu$-a.e. $t$ (in the v17 scalar-control setting). Equivalently, no agent is simultaneously safety-active against more than one neighbour; freedom cone $F_i$ is non-trivial $\mu$-a.e. (i.e., $F_i = \mathbb{R}$ when no pair is active, and $\{0\}$ when one pair is active). Holds generically when $\deg(\mathcal{G}) \le 2$; otherwise must be checked numerically per scenario. (This replaces the v16 $|\mathcal{N}_i^{\text{on}}| < d$ condition with the $d = 1$ scalar-control specialisation.)
 
-These six axioms (A1, A2, A2', A3', A4, A5) plus the dimensional regularity (A5') (vacuous for $d = 2$) are *all* the hypotheses. Lipschitz constraints, regularity of the closed loop, and dwell-time bounds are *consequences*.
+The seven axioms (A1, A2, A2', A2'', A3'', A4, A5) are *all* the hypotheses. Lipschitz constraints (away from the relative-degree-drop locus $D_{ij}$), regularity of the closed loop (Brezis 1973 + Filippov 1960 at $D_{ij}$), and dwell-time bounds (Krasnosel'skii-Pokrovskii 1989) are *consequences*. The (A5') minimum-subtended-angle axiom from v16 is vacuous for the v17 scalar-control setting and is dropped.
 
 ---
 
@@ -135,106 +142,214 @@ Under (A2') closed-loop PE on $u_{2,i}^{\text{ref}}$, $P_i(t) \to 0$ exponential
 
 ---
 
-## 3. The resolvent QP (Hilbert projection + Klein-Erlangen gauge fixing)
+## 3. The resolvent QP (Moreau prox + Klein-Erlangen gauge fixing + Filippov regularisation)
+
+### 3.0. Foundational lineage
+
+The §3 construction composes nine pre-1985 classical objects, each carrying a v17-specific role:
+
+| Component | Foundational anchor | Modern engineering rediscovery |
+|---|---|---|
+| Forward invariance of $h_{ij}\ge 0$ | Nagumo (1942) viability theorem [*Proc. Phys.-Math. Soc. Japan*]; second-order lift via Aubin-Cellina (1984) §5.1 second-order tangent cone | Ames-Xu-Grizzle (2014) ZCBF; Xiao-Belta (2021) HOCBF |
+| Differential inclusion at relative-degree drop | Filippov (1960) sliding-mode regularisation [*Mat. Sb.*] | Used implicitly via slack-penalty QP (§3.2) |
+| Gauge-fixing | Klein (1872) Erlangen programme; $\mathbb{R}_{>0} \times U(1)$ symmetry | Used for equivariance-check verification |
+| QP / metric projection | Moreau (1965) proximal operator [*Bull. Soc. Math. France* 93]; rate-independent moving sets: Moreau (1971) [*Évolution d'un système élasto-plastique*]; rate-dependent: Moreau (1977) sweeping process | OSQP (Stellato et al. 2020) |
+| Maximal monotone evolution | Brezis (1973) Thm 4.2 [*Opérateurs maximaux monotones*]; non-autonomous via Kato (1967) | Crandall-Liggett (1971) exponential formula |
+| Hysteretic active set | Krasnosel'skii-Pokrovskii (1989) play operator [*Systems with Hysteresis*]; rate-independent | Liberzon (2003) hysteretic switching |
+| Adaptive estimate $\hat\theta\to 1/\lambda$ | Lyapunov (1892) second method; LaSalle (1960) invariance | Pomet-Praly (1992) normalised swapped-signal |
+| Constrained Fisher information | Rao (1945 §6) [*Bull. Calcutta Math. Soc.*]; Aitchison-Silvey (1958) projected score | Used in §5 for $\bar\rho_i = \mathrm{tr}(Q_i)$ identifiability rate |
+| Slack regularisation | Tikhonov (1963) [*Soviet Math. Dokl.*]; convergence rate Engl-Hanke-Neubauer (1996) | Soft-constraint QP, $\mathcal{O}(M^{-1/2})$ error |
+
+The map "v17 §3 = nine classical pieces, composed" is the core organising principle. Each piece appears in the proofs of §3.1-§3.4, §4-§5.
 
 ### 3.1. CBF + relative-degree analysis (HOCBF)
 
 The pairwise safety function is unchanged in form from v16:
 $$h_{ij}(r) := |r_i - r_j|^2 - r_{\text{safe}}^2,$$
-where $|\cdot|$ is the complex modulus (= Euclidean norm in $\mathbb{R}^2$ under the $r = x + iy$ identification). $h_{ij}$ is invariant under the ambient $SE(2)$ action (translations + rotations), so the construction inherits the Klein-Erlangen $O(2)$-equivariance of v16.
+where $|\cdot|$ is the complex modulus (= Euclidean norm in $\mathbb{R}^2$ under the $r = x + iy$ identification). $h_{ij}$ is invariant under the ambient $SE(2)$ action (translations + rotations), so the construction inherits Klein-Erlangen $O(2)$-equivariance.
 
 **Relative degree.** Differentiate along the closed loop:
 $$\dot h_{ij} \;=\; 2\,\Re\!\big((r_i - r_j)\,\overline{v_{a,i} - v_{a,j}}\big),$$
-which depends only on $(r, v_a)$ - *not* on the control $u_2$. Differentiating once more,
+which depends only on $(r, v_a)$ — *not* on the control $u_2$. Differentiating once more,
 $$\ddot h_{ij} \;=\; 2\,|v_{a,i} - v_{a,j}|^2 \;+\; 2\,\Re\!\big((r_i - r_j)\,\overline{\dot v_{a,i} - \dot v_{a,j}}\big),$$
-and substituting $\dot v_{a,i} = i\,\lambda_i u_{2,i} v_{a,i}$ (eq. 2.1):
-$$\ddot h_{ij} \;=\; 2\,|v_{a,i} - v_{a,j}|^2 + 2\,\lambda_i u_{2,i}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big) - 2\,\lambda_j u_{2,j}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big).$$
-$\ddot h_{ij}$ is *linear* in the controls $(u_{2,i}, u_{2,j})$, so $h_{ij}$ has **relative degree 2** w.r.t. $u_2$. (In v16 $h_{ij}$ had relative degree 1 because $\dot x = u$ injected $u$ at first derivative.) This necessitates the **higher-order CBF (HOCBF) formulation** [Xiao-Belta 2021].
+and substituting $\dot v_{a,i} = i\,\lambda_i u_{2,i} v_{a,i}$ (eq. 2.1 with the constant-speed simplification) and using $\Re(-iz) = \Im(z)$:
+$$\boxed{\ddot h_{ij} \;=\; 2\,|v_{a,i} - v_{a,j}|^2 + 2\,\lambda_i u_{2,i}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big) - 2\,\lambda_j u_{2,j}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big).}$$
+$\ddot h_{ij}$ is *linear* in the controls $(u_{2,i}, u_{2,j})$ with coefficients $2\lambda_i\Im(\cdot)$ and $-2\lambda_j\Im(\cdot)$ respectively. Generically this gives **relative degree 2** w.r.t. $u_2$ (in v16 $h_{ij}$ had relative degree 1 because $\dot x = u$ injected $u$ at first derivative), necessitating the **higher-order CBF (HOCBF) formulation** [Xiao-Belta 2021; foundational form: Aubin-Cellina 1984 §5.1].
 
-**HOCBF condition.** Define $\psi_{0,ij} := h_{ij}$ and $\psi_{1,ij} := \dot \psi_{0,ij} + \alpha_1 h_{ij}$. The HOCBF condition for forward invariance is
+**Relative-degree-drop locus.** Define the HOCBF coefficient (with $\lambda_i$ factored out for gauge-fixing in the next subsection)
+$$a_{ii}(r, v_a) \;:=\; 2\,\Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big), \qquad a_{ij}(r, v_a) \;:=\; -2\,\Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big).$$
+The relative-degree-drop locus is
+$$D_{ij} \;:=\; \big\{(r, v_a) : a_{ii}(r, v_a) = 0\big\} \;=\; \big\{(r, v_a) : \arg(r_i - r_j) - \arg v_{a,i} \in \{0, \pi\}\big\},$$
+i.e., the codimension-1 head-on / tail-on family. On $D_{ij}$, $h_{ij}$ fails uniform relative degree 2; the differential inclusion (§3.1.3) becomes non-Lipschitz, and Brezis (1973) Theorem 4.2 does not apply directly. We adopt the **Filippov (1960) regularisation framing**: at the locus, the closed-loop is interpreted via the convex-hull set-valued vector field, yielding an absolutely continuous solution with sliding-mode behaviour along $D_{ij}$. The slack-penalty QP (§3.2) is the smoothed approximation of this Filippov solution.
+
+To exclude pathological neighbourhoods of $D_{ij}$ from the closed-loop invariant set, axiom (A3'') item 3 imposes the quantitative guard $|a_{ii}(t, r, v_a)| \ge \eta_a > 0$ on $\mathcal{M}$. The recoverability margin $\eta_a$ is derived in §3.1.1.
+
+**HOCBF condition** [Xiao-Belta 2021 Thm 2; foundational form: Nagumo 1942 + Aubin-Cellina 1984 §5.1]. Define $\psi_{0,ij} := h_{ij}$ and $\psi_{1,ij} := \dot \psi_{0,ij} + \alpha_1 h_{ij}$. The HOCBF condition for forward invariance is
 $$\dot \psi_{1,ij} + \alpha_2\, \psi_{1,ij} \;\ge\; 0 \;\;\Longleftrightarrow\;\; \ddot h_{ij} + (\alpha_1 + \alpha_2)\,\dot h_{ij} + \alpha_1 \alpha_2\, h_{ij} \;\ge\; 0,$$
-where $\alpha_1, \alpha_2 > 0$ are linear class-$\mathcal{K}$ gains. By Nagumo (1942) extended via Xiao-Belta (2021), this implies $h_{ij}(t) \ge 0$ for all $t$, provided the initial condition satisfies $\psi_{0,ij}(0) \ge 0$ AND $\psi_{1,ij}(0) \ge 0$ - a strengthening of axiom (A3') (now requires $\dot h_{ij}(0) + \alpha_1 h_{ij}(0) \ge 0$).
+where $\alpha_1, \alpha_2 > 0$ are linear class-$\mathcal{K}$ gains. By Aubin-Cellina (1984) §5.1, this implies $h_{ij}(t) \ge 0$ for all $t$ provided $\psi_{0,ij}(0), \psi_{1,ij}(0) \ge 0$ — both of which are required by axiom (A3'') items 1 and 2.
 
-**Gauge-fixed constraint.** As in v16, multiply through by $\hat\theta_i = 1/\hat\lambda_i$ to remove the unknown-$\lambda_i$ dependency from the constraint *coefficient*:
+*Lyapunov reformulation.* $\psi_{1,ij}$ is itself a Lyapunov-style function with reverse inequality $\dot\psi_1 \ge -\alpha_2\psi_1$ (Krasovskii 1959 §14). Equivalently, $\psi_1(t) \ge \psi_1(0)e^{-\alpha_2 t} \ge 0$ — the foundational reason the initial-condition requirement propagates to all $t\ge 0$.
+
+**Gauge-fixed constraint.** Multiply the HOCBF condition through by $\hat\theta_i \in [\theta_{\min}, \theta_{\max}]$ (positive by axiom (A1), so the inequality direction is preserved), and use the gauge-fix approximations $\hat\theta_i\,\lambda_i \approx 1$ and $\hat\theta_i\,\lambda_j \approx \hat\theta_i / \hat\theta_j$ (justified by axiom (A1) bounds and the estimator residual analysis below):
 $$
-c_{ij}(u_{2,i}; r, v_a, \hat\theta) \;:=\; 2\, u_{2,i}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,i}}\big)
-\;-\; 2\,\tfrac{\hat\theta_i}{\hat\theta_j}\, u_{2,j}^{\text{AC}}\, \Im\!\big((r_i - r_j)\,\overline{v_{a,j}}\big)
-\;+\; \hat\theta_i\, b_{ij}^{(0)} \;\ge\; \delta_{ij}(t),
+\boxed{\;
+c_{ij}(u_{2,i}; r, v_a, \hat\theta) \;:=\; a_{ii}\, u_{2,i} \;+\; \tfrac{\hat\theta_i}{\hat\theta_j}\, a_{ij}\, u_{2,j}^{\text{safe}}(t^-) \;+\; \hat\theta_i\, b_{ij}^{(0)} \;\ge\; \delta_{ij}(t),
+\;}
 $$
 where the $\hat\theta$-independent residual is
-$$b_{ij}^{(0)} \;:=\; |v_{a,i} - v_{a,j}|^2 + (\alpha_1 + \alpha_2)\,\Re\!\big((r_i - r_j)\,\overline{v_{a,i} - v_{a,j}}\big) + \tfrac{\alpha_1 \alpha_2}{2}\,h_{ij},$$
-and $\delta_{ij}(t) = 2 D_{\max}\, \big(\sqrt{P_i(t)}/\theta_{\min}\big)\, |v_a^{\max}|\, V_0\, u_{2,\max}^{\text{ref}}$ is the time-varying tightening from Lemma 5.2 lifted to the Dubins setting (vanishing as $P_i(t) \to 0$).
-
-**Why this gauge-fixing still works:** the decision-variable coefficient $2\,\Im((r_i-r_j)\overline{v_{a,i}})$ is a function of $(r, v_a)$ only - independent of $\hat\theta$. The constraint Jacobian is therefore $\hat\theta$-independent, exactly as in v16; only RHS varies (bounded by $\theta_{\max}/\theta_{\min}$ [Wright 1997 §11]). The Klein-Erlangen $\mathbb{R}_{>0}$ scaling symmetry on $\hat\theta$ remains; the gauge choice is preserved across the dynamics upgrade.
-
-**Feasible set per agent:**
 $$
-K_i(t, r, v_a) \;:=\; \big\{ u_{2,i} \in \mathbb{R} : c_{ij}(u_{2,i}; r, v_a, \hat\theta) \ge \delta_{ij}(t)\ \forall j \in \mathcal{N}_i^{\text{on}}(t),\; |u_{2,i}| \le \dot\psi_{\max} \big\},
+\boxed{b_{ij}^{(0)} \;:=\; 2\,|v_{a,i} - v_{a,j}|^2 + 2(\alpha_1 + \alpha_2)\,\Re\!\big((r_i - r_j)\,\overline{v_{a,i} - v_{a,j}}\big) + \alpha_1 \alpha_2\, h_{ij},}$$
+$u_{2,j}^{\text{safe}}(t^-)$ is the most-recent broadcast of agent $j$'s safety-filtered command (axiom (A4)), and $\delta_{ij}(t)$ is the time-varying tightening derived in §3.1.2.
+
+**(Pass 19 / 20 / 21 NOTE.)** Earlier drafts wrote $b_{ij}^{(0)} = |v|^2 + (\alpha_1+\alpha_2)\Re(\cdot) + (\alpha_1\alpha_2/2) h$ — every term halved by 2. This was inconsistent with the LHS coefficient $a_{ii} = 2\Im(\cdot)$: re-deriving from $\ddot h + (\alpha_1+\alpha_2)\dot h + \alpha_1\alpha_2 h \ge 0$ shows that after multiplying by $\hat\theta_i$, $|v|^2$ and $(\alpha_1+\alpha_2)\Re(\cdot)$ each carry a factor of 2 from the substitutions $\ddot h \supset 2|v|^2$ and $\dot h = 2\Re(\cdot)$, while $\alpha_1\alpha_2 h_{ij}$ enters with coefficient 1. The corrected $b_{ij}^{(0)}$ above is internally consistent with $a_{ii} = 2\Im(\cdot)$.
+
+**Klein equivariance verification.** Under the gauge action $\hat\theta_i \mapsto \kappa\hat\theta_i$ (uniform $\mathbb{R}_{>0}$ scaling, $\kappa > 0$):
+- LHS first term $a_{ii}\,u_{2,i}$ is $\hat\theta$-degree-0 (no $\hat\theta$).
+- LHS second term $(\hat\theta_i/\hat\theta_j)\,a_{ij}\,u_{2,j}^{\text{safe}}$ is $\hat\theta$-degree-0 (the ratio is invariant).
+- LHS third term $\hat\theta_i\,b_{ij}^{(0)}$ is $\hat\theta$-degree-1; rescales by $\kappa$.
+- RHS $\delta_{ij}(t)$ is $\hat\theta$-degree-? (depends on its derivation in §3.1.2).
+
+The three LHS terms have *different* $\hat\theta$-degrees, so the constraint is **not** uniformly invariant. The correct equivariance check: dividing the entire constraint by $\hat\theta_i$ recovers the original HOCBF condition $\ddot h + (\alpha_1+\alpha_2)\dot h + \alpha_1\alpha_2 h \ge 0$ (with the gauge-fix approximations made on the $\hat\theta_i\lambda_i$ and $\hat\theta_i\lambda_j$ products), which is $\hat\theta$-independent. The gauge-fixed form is a *gauge choice*, not gauge-invariance — and the right verification is the dimensional / homogeneity check that *each side*, after de-gauging, has the same $\hat\theta$-degree. ✓
+
+### 3.1.1. Recoverability margin (worst-case feasibility under saturation)
+
+For the HOCBF safety filter to be implementable under saturation $|u_{2,i}| \le \dot\psi_{\max}$, the worst-case constraint deficit must be recoverable by maximum turn rate. At a given $(r, v_a, \hat\theta)$, the un-aided HOCBF residual (i.e., the LHS at $u_{2,i} = 0$ minus the RHS) is
 $$
-with the same hysteretic active-set machinery as v16 (engagement at $c_{ij} \le \varepsilon$, disengagement at $c_{ij} \ge 2\varepsilon$, $\varepsilon \in [\delta_{ij}(t) + \mathrm{tol}_{\text{QP}}, 0.1\, r_{\text{safe}}^2]$; Liberzon 2003 §1.2). The saturation $|u_{2,i}| \le \dot\psi_{\max}$ encodes the maximum turn-rate (e.g., bank-angle limit for fixed-wing UAVs; cf. Maldonado-Naranjo–Annaswamy eq. 2).
+\text{res}_{ij}(t, r, v_a, \hat\theta) \;:=\; \tfrac{\hat\theta_i}{\hat\theta_j}\, a_{ij}\, u_{2,j}^{\text{safe}}(t^-) + \hat\theta_i\, b_{ij}^{(0)} - \delta_{ij}(t).
+$$
+For agent $i$ to feasibly steer $u_{2,i}$ to satisfy $c_{ij} \ge \delta_{ij}$, we need $|a_{ii}|\,\dot\psi_{\max} \ge |{\rm res}_{ij}|$. In the worst-case collision-imminent regime ($h_{ij} \to 0$, $\dot h_{ij} \to -2\,r_{\text{safe}}\,|v_{a,i}-v_{a,j}|$, so $\dot h$ contributes $-2(\alpha_1+\alpha_2) r_{\text{safe}}\,|v|$; $|v_{a,i}-v_{a,j}| \le 2 V_0$),
+$$
+b_{ij}^{(0)} \big|_{\text{worst}} \;\approx\; 2 \cdot (2V_0)^2 - 2(\alpha_1+\alpha_2) r_{\text{safe}} (2V_0) + \alpha_1\alpha_2 \cdot 0 \;=\; 8 V_0^2 - 4(\alpha_1+\alpha_2)\, r_{\text{safe}}\, V_0.
+$$
+For $V_0 = 1$, $\alpha_1+\alpha_2 = 10$, $r_{\text{safe}} = 0.4$: $b_{ij}^{(0)}\big|_{\text{worst}} \approx 8 - 16 = -8$. So $\hat\theta_i b_{ij}^{(0)}\big|_{\text{worst}} \le -16$ (with $\hat\theta_i \le \theta_{\max} = 2$). The cross-term contributes at most $\kappa_\lambda \cdot 2 \cdot 2 V_0 \cdot \dot\psi_{\max} = 2\cdot 2\cdot 2\cdot 5 = 40$ in magnitude. The tightening $\delta_{ij}(t) \le \tfrac12 r_{\text{safe}}^2 = 0.08$ on the closed-loop invariant set (from (A3'')).
+
+Putting these together, $|\text{res}_{ij}|_{\text{worst}} \le 16 + 40 + 0.08 \approx 56$. For recoverability:
+$$
+\dot\psi_{\max}\, |a_{ii}|_{\min} \;\ge\; |\text{res}_{ij}|_{\text{worst}},
+$$
+i.e., $|a_{ii}|_{\min} \ge 56 / 5 = 11.2$. This is the quantitative recoverability margin $\eta_a$ required by axiom (A3'') item 3 in the *worst case*.
+
+For the §8.3 cross-swap scenario, the worst-case collision-imminent regime is not actually reached on the closed loop (agents engage the active pair well before $h \to 0$, by hysteresis at $c_{ij} \le \varepsilon = 0.05 r_{\text{safe}}^2$), so the practical $\eta_a$ is smaller. The §8.4 §8.4 figure pipeline includes a numerical check that $|a_{ii}| \ge \eta_a^{\text{practical}} > 0$ throughout the simulation, with $\eta_a^{\text{practical}}$ computed online.
+
+*Engineering note* (Ames). The relation $\dot\psi_{\max}\,|a_{ii}|_{\min} \ge \alpha_1\alpha_2\,r_{\text{safe}}^2 + (\text{cross-term + tightening overhead})$ is the v17 lift of the standard "compatibility condition" between CBF gain choice and actuator limits (Ames-Xu-Grizzle 2014 §III). For fixed-wing UAVs at typical $V_0 \sim 20$ m/s and $\dot\psi_{\max} \sim 0.5$ rad/s, the $\alpha$ choice and $r_{\text{safe}}$ must satisfy this relation jointly; otherwise the safety filter is structurally infeasible regardless of slack.
+
+### 3.1.2. The CBF tightening $\delta_{ij}(t)$ — explicit residual aggregation
+
+The tightening $\delta_{ij}(t)$ must absorb three residual sources in the gauge-fixed constraint:
+
+**(R1) Estimator residual on the LHS coefficient.** The exact LHS coefficient is $a_{ii}\,(\hat\theta_i\lambda_i)$, not $a_{ii}$ alone. The product $\hat\theta_i\lambda_i$ deviates from 1 by $|\hat\theta_i\lambda_i - 1|$. By axiom (A1) bounds and the KB filter Cauchy-Schwarz (Lemma 5.2),
+$$
+\varepsilon^{(1)}_i(t) \;:=\; \big|\hat\theta_i\lambda_i - 1\big| \;\le\; \theta_{\max}\,\sqrt{P_i(t)}\big/\theta_{\min}.
+$$
+The contribution to the constraint LHS is bounded by $\varepsilon^{(1)}_i(t)\cdot |a_{ii}|\cdot \dot\psi_{\max}$.
+
+**(R2) Cross-term substitution residual.** The exact cross-term is $\hat\theta_i\lambda_j\,a_{ij}\,u_{2,j}^{\text{safe}}$ where $u_{2,j}^{\text{safe}}$ is agent $j$'s realised safety-filtered command and $\hat\theta_i\lambda_j$ is approximated by $\hat\theta_i/\hat\theta_j$. The substitution residual is
+$$
+\varepsilon^{(2)}_{ij}(t) \;:=\; \big|\hat\theta_i\lambda_j - \hat\theta_i/\hat\theta_j\big| \;\le\; \theta_{\max}\big(\theta_{\max}\sqrt{P_j(t)}/\theta_{\min}^2\big),
+$$
+contributing $\varepsilon^{(2)}_{ij}(t)\cdot |a_{ij}|\cdot \dot\psi_{\max}$ to the constraint LHS in worst case.
+
+**(R3) Broadcast latency residual.** Under axiom (A4), agent $i$ receives $u_{2,j}^{\text{safe}}(t^-)$ — the most-recent past broadcast. With latency $\tau_d > 0$, the actual current $u_{2,j}^{\text{safe}}(t)$ deviates from the broadcast by
+$$
+\varepsilon^{(3)}_j(\tau_d) \;:=\; \big|u_{2,j}^{\text{safe}}(t) - u_{2,j}^{\text{safe}}(t-\tau_d)\big| \;\le\; \dot u_{2,\max} \cdot \tau_d \;\le\; (\text{Lipschitz constant of the QP}) \cdot \tau_d,
+$$
+which the §5.4 dwell-time bound makes precise.
+
+**Aggregation.** The total tightening is
+$$
+\boxed{\;
+\delta_{ij}(t) \;:=\; \underbrace{\dot\psi_{\max}\Big[\,|a_{ii}|\,\varepsilon^{(1)}_i(t) + |a_{ij}|\,\varepsilon^{(2)}_{ij}(t)\,\Big]}_{\text{R1 + R2}} \;+\; \underbrace{\tfrac{\hat\theta_i}{\hat\theta_j}\,|a_{ij}|\,\varepsilon^{(3)}_j(\tau_d)}_{\text{R3}} \;+\; \zeta_0,
+\;}
+$$
+where $\zeta_0 > 0$ is a constant safety margin (Lemma 5.2 baseline). The first two summands vanish as $P_i(t), P_j(t) \to 0$ (estimator convergence); the third vanishes as $\tau_d \to 0$ (continuous-time broadcast). At $t = 0$, $\delta_{ij}(0)$ is largest; axiom (A3'') item 1 requires $h_{ij}(0) \ge \delta_{ij}(0) + \zeta$ to seed the forward invariance.
+
+### 3.1.3. Feasible set and closed-loop differential inclusion
+
+Per-agent feasible set:
+$$
+K_i(t, r, v_a, \hat\theta) \;:=\; \big\{ u_{2,i} \in \mathbb{R} : c_{ij}(u_{2,i};\,\cdots) \ge \delta_{ij}(t)\ \forall j \in \mathcal{N}_i^{\text{on}}(t),\; |u_{2,i}| \le \dot\psi_{\max} \big\}.
+$$
+By axioms (A1)-(A4), (A3'') items 1-3, and the recoverability margin (§3.1.1), $K_i$ has non-empty interior on the closed-loop invariant set $\mathcal{M}$, *except possibly* on the relative-degree-drop locus $D_{ij}$ where Filippov regularisation applies.
+
+Hysteretic active-set machinery (Krasnosel'skii-Pokrovskii 1989 play operator; engineering rediscovery: Liberzon 2003 §1.2): engagement at $c_{ij} \le \varepsilon$, disengagement at $c_{ij} \ge 2\varepsilon$, $\varepsilon \in [\delta_{ij}(t) + \mathrm{tol}_{\text{QP}}, 0.1\, r_{\text{safe}}^2]$. Symmetric across the pair: both agents $i$ and $j$ enter / exit $\mathcal{N}_i^{\text{on}}(t) \cap \mathcal{N}_j^{\text{on}}(t)$ in lockstep when computing $c_{\min} := \min(c_i, c_j)$ from the symmetric form (engineering verification: see Pass 21 finding by Egerstedt, [sim/dynamics.py:165](sim/dynamics.py:165)). Under symmetric broadcast, this consensus is automatic.
 
 **Closed-loop.** The closed-loop is the differential inclusion
 $$
-\dot r_i = v_{a,i}, \qquad \dot v_{a,i} \in i\,\lambda_i\, K_i(t, r, v_a)\, v_{a,i},
+\dot r_i = v_{a,i}, \qquad \dot v_{a,i} \in i\,\lambda_i\, K_i(t, r, v_a, \hat\theta)\, v_{a,i},
 $$
-whose right-hand side is governed by the time-varying maximal monotone operator $A(t, r, v_a)$ given by the normal cone $N_{K_i}$ [Rockafellar 1970; Brezis 1973 §2.1]; see §3.2 for the QP-resolvent realisation.
+governed by the time-varying maximal monotone operator $A(t, r, v_a, \hat\theta) = N_{K_i}$ [Rockafellar 1970; Brezis 1973 §2.1] *off the locus* $D_{ij}$, and by the **Filippov (1960) convex-hull regularisation** *on* $D_{ij}$:
+$$
+\text{at } (r, v_a) \in D_{ij}: \quad \dot v_{a,i} \in i\,\lambda_i\,\overline{\text{conv}}\big\{ K_i(t, r', v_a', \hat\theta) : (r', v_a') \to (r, v_a) \big\}\, v_{a,i}.
+$$
+This yields an absolutely continuous solution along $D_{ij}$ (sliding-mode behaviour); the slack-penalty QP (§3.2) is the smoothed approximation, with the smoothing parameter being the slack penalty $M < \infty$.
 
 ### 3.2. The QP is the (1-D) resolvent
 
-Pick a per-agent scalar excitation signal $e_i^{\text{pe}}: \mathbb{R}_{\ge 0} \to \mathbb{R}$ with $|e_i^{\text{pe}}| \le A_e$, and project onto the freedom cone $F_i(t) \subset \mathbb{R}$, which is either $\{0\}$ (when at least one pair is active) or $\mathbb{R}$ (when no pair is active) - the freedom-cone idea simplifies in 1-D control space, since the "constraint normal" is the scalar coefficient $\Im((r_i-r_j)\overline{v_{a,i}})$.
+Pick a per-agent scalar excitation signal $e_i^{\text{pe}}: \mathbb{R}_{\ge 0} \to \mathbb{R}$ with $|e_i^{\text{pe}}| \le A_e$, and project onto the freedom cone $F_i(t) \subset \mathbb{R}$. In the v17 scalar-control setting, $F_i$ degenerates to either $\mathbb{R}$ (when $\mathcal{N}_i^{\text{on}}(t) = \emptyset$) or $\{0\}$ (when at least one pair is active). The freedom-cone projection is therefore $\tilde e_i^{\text{pe}}(t) = e_i^{\text{pe}}(t) \cdot \mathbb{1}\{\mathcal{N}_i^{\text{on}}(t) = \emptyset\}$ — PE is admitted only when no pair is active.
 
-The control law is the metric projection of the QP target onto the feasible interval $K_i$, which **is** the Yosida resolvent $J_h^{(t,r,v_a)}$ at step size $h \to 0^+$:
+The control law is the metric projection of the QP target onto the feasible interval $K_i$, which **is** the Moreau (1965) proximal operator (equivalently the Yosida resolvent $J_h$ at $h \to 0^+$):
 $$
 \boxed{\;
-u_{2,i}^{\text{safe}}(t) \;=\; J_h\!\big(u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}\big)
-\;=\; \arg\min_{u_2 \in K_i(t,r,v_a)} \big(u_2 - (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}})\big)^2 \;+\; M\!\sum_{j \in \mathcal{N}_i^{\text{on}}} s_{ij}^2.
+u_{2,i}^{\text{safe}}(t) \;=\; \mathrm{prox}_{\chi_{K_i(t,r,v_a,\hat\theta)}}\!\big(u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}\big)
+\;=\; \arg\min_{u_2,\,s \ge 0} \big(u_2 - (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}})\big)^2 \;+\; M\sum_{j \in \mathcal{N}_i^{\text{on}}} s_{ij}^2
 \;}
 $$
-This is a *scalar QP* per agent (decision variable $u_{2,i} \in \mathbb{R}$ plus slacks $s_{ij} \ge 0$); per-agent cost is $\mathcal{O}(|\mathcal{N}_i^{\text{on}}|)$, dominated by linear constraint setup. The slack penalty $M = 10^4$ is unchanged from v16. As $M \to \infty$, the slack solution converges to the hard-constrained solution where feasible.
+subject to $a_{ii}\,u_2 + (\hat\theta_i/\hat\theta_j)\,a_{ij}\,u_{2,j}^{\text{safe}}(t^-) + \hat\theta_i\,b_{ij}^{(0)} + s_{ij} \ge \delta_{ij}(t)$ for $j \in \mathcal{N}_i^{\text{on}}$ and $|u_2| \le \dot\psi_{\max}$. This is a *scalar QP* per agent with $1 + |\mathcal{N}_i^{\text{on}}|$ decision variables and $\le 2|\mathcal{N}_i^{\text{on}}| + 2$ inequality constraints (HOCBF + slack non-negativity + saturation). Per-agent cost is $\mathcal{O}(|\mathcal{N}_i^{\text{on}}|)$, dominated by linear constraint setup. The slack penalty $M = 10^4$ is chosen to balance (i) closeness to the hard-constraint solution and (ii) the Tikhonov regularisation rate — see §3.3.
 
-The Moreau-sweeping-process / Crandall-Liggett semigroup framework from v16 lifts unchanged - the relative-degree-2 nature shows up in $K_i$ being defined via $\ddot h$ rather than $\dot h$, but $K_i$ is still a closed convex (interval) set, so the Hilbert projection theorem and the Moreau (1977) sweeping process still apply.
+The Moreau-prox / sweeping-process / Crandall-Liggett lineage: Moreau (1965) gives the proximal operator on a static convex set; Moreau (1971) extends to rate-independent moving sets (the elasto-plastic case); Moreau (1977) handles rate-dependent moving sets (the generic $K(t)$ case). v17 is a rate-dependent case (since $K_i(t)$ depends on the moving plant and parameter estimate). Existence + uniqueness + continuous dependence on data follow from Brezis (1973) Theorem 4.2 *off the locus* $D_{ij}$, and from Filippov (1960) regularisation *on* $D_{ij}$. **No smoothed-sigmoid regularisation is required** beyond the slack penalty itself; the QP is the resolvent.
 
-The continuous-time closed-loop trajectory is generated by **Moreau's (1977) sweeping process** $-\dot u(t) \in N_{K(t,x(t))}(u(t))$ on the time-varying convex set $K(t,x)$; for the autonomous specialisation (fixed mode $m$) this reduces to **Crandall-Liggett's (1971) exponential formula**:
-$$
-x(t) \;=\; \lim_{n \to \infty}\, J_{t/n}^{(t/n, x_{n-1})} \circ \cdots \circ J_{t/n}^{(0, x_0)}(x_0),
-$$
-the implicit-Euler scheme with the QP as the resolvent map. Existence + uniqueness + continuous dependence on data are immediate from Brezis (1973) Theorem 4.2. **No smoothed-sigmoid regularisation is required** - the QP itself is the resolvent.
+### 3.3. Numerical scheme (Brezis Cor 4.2 + Hager 1979 + Tikhonov 1963)
 
-### 3.3. Numerical scheme (Brezis Cor 4.2 + Hager 1979)
+The simulation picks finite outer step $h_{\text{outer}} > 0$, inner QP tolerance $\text{tol}_{\text{QP}} > 0$, and slack penalty $M < \infty$. Three error sources combine:
+$$
+\boxed{\;
+\|x_n - x(t_n)\| \;\le\; C_1\, h_{\text{outer}} \;+\; C_2\, \frac{\text{tol}_{\text{QP}}}{h_{\text{outer}}} \;+\; \frac{C_3}{\sqrt{M}},
+\;}
+$$
+with $C_1$ from Brezis (1973) Cor. 4.2 (semigroup discretisation), $C_2$ from Hager (1979) Theorem 3.1 (active-set Lipschitz constant), and $C_3$ from Tikhonov (1963) regularisation of the indicator function (rate $\mathcal{O}(M^{-1/2})$ in the worst case; Engl-Hanke-Neubauer 1996 §3.2). Pass 19 originally stated $\mathcal{O}(M^{-1})$; the correction to $\mathcal{O}(M^{-1/2})$ (Pass 20 / Tikhonov) reflects the absence of a source condition on the constraint manifold.
 
-Crandall-Liggett's $\lim_{n \to \infty}$ is an existence result; the simulation picks a finite outer step $h_{\text{outer}} > 0$ and an inner QP tolerance $\text{tol}_{\text{QP}} > 0$. By Brezis (1973) Cor. 4.2 + Hager (1979),
+The three errors must be balanced. Default pairing (matches the existing repo and stays inside Simulink's fixed-step loop):
 $$
-\|x_n - x(t_n)\| \;\le\; C_1\, h_{\text{outer}} \;+\; C_2\, \text{tol}_{\text{QP}}/h_{\text{outer}},
+h_{\text{outer}} = 5\times 10^{-3}\;\text{s}, \quad \text{tol}_{\text{QP}} = 10^{-7}, \quad M = 10^4.
 $$
-so the two errors must be balanced. Default pairing (matches the existing repo and stays inside Simulink's fixed-step loop):
-$$
-h_{\text{outer}} = 5\times 10^{-3}\;\text{s}, \qquad \text{tol}_{\text{QP}} = 10^{-7}.
-$$
-Inner solver: **OSQP** (Stellato et al. 2020) - chosen for warm-start support and Python+MATLAB ABI. Per-agent QP has $\le d + |\mathcal{N}_i^{\text{on}}|$ decision variables and $\le |\mathcal{N}_i^{\text{on}}| + 2d$ inequality constraints (CBF + slack + saturation). For $N=4, d=2$: ≤5 variables, ≤7 constraints; OSQP solves in ~0.1 ms warm-started on a desktop CPU. Per-step cost scales as $\mathcal{O}(N \cdot \deg(\mathcal{G}))$; **real-time feasible up to $N \approx 50$ at $h_{\text{outer}} = 5$ ms** on an Intel i7-12700-class CPU. Beyond $N = 50$, parallelise per-agent QPs (independent across agents) or coarsen $h_{\text{outer}}$.
+At these values the slack-induced error is $\mathcal{O}(M^{-1/2}) = \mathcal{O}(10^{-2})$, comparable to the discretisation $C_1 h = \mathcal{O}(5\times 10^{-3})$ and inner-solver $C_2 \text{tol}/h = \mathcal{O}(2\times 10^{-5})$. To tighten the slack contribution, raise $M$ to $10^5$ (slack error $\mathcal{O}(3\times 10^{-3})$).
 
-**Warm-start at hysteresis events.** The active-set change at an event invalidates the OSQP warm-start (different problem dimension); the implementation cold-starts OSQP for the first iteration after each event. Empirically, events occur at frequency $\sim 1/\tau_d \approx 1$ Hz (Lemma 5.6 dwell-time), so the cost penalty is $\sim 10\times$ per event $\times$ 1 Hz $= \sim 1$ ms additional per second; negligible at $h_{\text{outer}} = 5$ ms.
+Inner solver: **OSQP** (Stellato et al. 2020) — chosen for warm-start support and Python+MATLAB ABI. Per-agent QP has $1 + |\mathcal{N}_i^{\text{on}}|$ decision variables and $\le 2|\mathcal{N}_i^{\text{on}}| + 2$ inequality constraints. For $N=4$: $\le 4$ variables, $\le 8$ constraints; OSQP solves in ~0.05 ms warm-started on a desktop CPU (empirical; benchmark in [tests/test_qp_timing.py](tests/test_qp_timing.py) — pending). Per-step cost scales as $\mathcal{O}(N \cdot \deg(\mathcal{G}))$; **real-time feasible up to $N \approx 50$ at $h_{\text{outer}} = 5$ ms** on an Intel i7-12700-class CPU. Beyond $N = 50$, parallelise per-agent QPs (independent across agents) or coarsen $h_{\text{outer}}$.
+
+**Warm-start at hysteresis events.** The active-set change at an event invalidates the OSQP warm-start (different problem dimension); the implementation cold-starts OSQP for the first iteration after each event. Empirically, events occur at frequency $\sim 1/\tau_d \approx 1$ Hz (Lemma 5.6 dwell-time, foundational form: Krasnosel'skii-Pokrovskii 1989 BV continuity), so the cost penalty is $\sim 10\times$ per event $\times$ 1 Hz $= \sim 1$ ms additional per second; negligible at $h_{\text{outer}} = 5$ ms.
 
 Outer integrator: fixed-step RK4 (preferred for Simulink) or ode15s with mass-matrix identity (preferred for adaptive step-sizing studies). The QP is the resolvent $J_{h_{\text{outer}}}$; no DAE machinery is needed because the constraint enters only through the projection, not as an algebraic equation in the state.
 
-For $N = 2$, $d = 2$, single active pair, the QP admits the closed-form Lagrangian solution
+**Closed-form Lagrangian (v17 scalar form).** For agent $i$ with a single active pair $j$ and no saturation binding, the QP admits the Lagrangian solution
 $$
-u_i^{\text{safe}} \;=\; (u_i^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* \cdot 2(x_i - x_j), \qquad \mu_{ij}^* = \max\!\Big(0,\, \frac{\delta_{ij}(t) - c_{ij}(u_i^{\text{AC}} + \tilde e_i^{\text{pe}})}{\|2(x_i - x_j)\|^2}\Big),
+u_{2,i}^{\text{safe}} \;=\; \big(u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}\big) + \mu_{ij}^* \cdot a_{ii}, \qquad \mu_{ij}^* = \max\!\Big(0,\, \frac{\delta_{ij}(t) - c_{ij}\big(u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}\big)}{a_{ii}^2}\Big),
 $$
-which is the unit test for the OSQP wrapper before scaling to $N \ge 3$.
+where $a_{ii} = 2\Im((r_i - r_j)\overline{v_{a,i}})$ is the v17 scalar HOCBF coefficient (replacing the v16 $2(x_i - x_j)$ vector). With saturation: clip $u_{2,i}^{\text{safe}}$ to $[-\dot\psi_{\max}, +\dot\psi_{\max}]$; if clipping activates, the slack absorbs the residual. With $|\mathcal{N}_i^{\text{on}}| > 1$ active pairs, the closed form generalises to a piecewise-linear function of the target with at most $|\mathcal{N}_i^{\text{on}}| + 2$ breakpoints (Pontryagin Maximum Principle on the QP; Robinson 1980). This is the unit test for the OSQP wrapper before scaling to $N \ge 3$ ([sim/qp_resolvent.py:108](sim/qp_resolvent.py:108) implements it).
 
 ### 3.4. Lemma 1 (well-posedness of the QP-resolvent)
 
-Under (A1), (A2), (A2'), (A3'), (A4), (A5), the QP admits a unique solution that is *piecewise-affine* on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$ and *Lipschitz* in $(x, \hat\theta, e_i^{\text{pe}})$ on each stratum. The constraint Jacobian for agent $i$'s decision variable $u_i$ is $\hat\theta$-independent (the $\hat\theta_i / \hat\theta_j$ cross-coupling enters only as a linear shift in the RHS).
+**Lemma 1 (v17).** *Under (A1), (A2), (A2'), (A2''), (A3''), (A4), (A5), the QP admits a unique solution that is:*
+1. *piecewise-affine on the hysteretic strata of $\mathcal{N}_i^{\text{on}}$ and the saturation-active set $\{|u_{2,i}| = \dot\psi_{\max}\}$ (Robinson 1980),*
+2. *Lipschitz in $(r, v_a, \hat\theta, e_i^{\text{pe}})$ on each stratum away from the locus $D_{ij}$, with constant $L_{\text{QP}}^* < \infty$ given below,*
+3. *piecewise-Filippov on the locus $D_{ij}$, with sliding-mode dwell-time bounded below by $\tau_d^{\text{Filippov}} > 0$ from §5.6.*
 
-*Sketch.* Strict convexity (objective Hessian $2I$) + linear constraints with non-empty interior (by A3' + Lemma 5.1) + Hilbert projection theorem [Hilbert 1906; Riesz 1907]. Lipschitz constant from Hager (1979) Theorem 3.1: with $G_i(t,x) \in \mathbb{R}^{|\mathcal{N}_i^{\text{on}}| \times d}$ the active-constraint Jacobian (rows $2(x_i - x_j)^\top$),
+*Sketch.* Strict convexity (objective Hessian $2I$ on $u_{2,i}$ + $2M I$ on slacks) + linear constraints with non-empty interior (axioms (A3'') items 1-3 + Lemma 5.1) + Hilbert projection theorem [Hilbert 1906; Riesz 1907]. Piecewise-affine on each stratum: Robinson (1980).
+
+**Lipschitz constant** (from Hager 1979 Theorem 3.1, lifted to v17 scalar). The active-constraint Jacobian is
 $$
-L_{\text{QP}}(t,x) \;=\; \frac{1}{\sigma_{\min}(G_i(t,x))} \cdot \big(1 + \kappa_\Lambda \cdot |\mathcal{N}_i^{\text{on}}(t)|\big),
+G_i(t, r, v_a) \;\in\; \mathbb{R}^{|\mathcal{N}_i^{\text{on}}|}, \qquad (G_i)_j = a_{ii}(r, v_a; r_j, v_{a,j}).
 $$
-where $\sigma_{\min}(G_i)$ is the smallest singular value of the active Jacobian. By (A5), $|\mathcal{N}_i^{\text{on}}| \le d - 1$ $\mu$-a.e., so $\sigma_{\min}(G_i) \ge 2 r_{\text{safe}}\, \sigma_{\min}^{\text{geom}}$ where $\sigma_{\min}^{\text{geom}} > 0$ is the *geometric configuration* constant (smallest singular value of the unit-direction matrix; bounded away from zero on $\mathcal{M}$ when no two active normals are collinear). Worst-case bound:
+By axiom (A3'') item 3, $|a_{ii}|\ge\eta_a > 0$ on $\mathcal{M}$, so $\sigma_{\min}(G_i) = \min_j |(G_i)_j| \ge \eta_a$. (In v16, the analogous bound was $\sigma_{\min}(G_i) \ge 2 r_{\text{safe}}\,\sigma_{\min}^{\text{geom}}$; the v17 bound is $\eta_a$, which is *not* a function of $r_{\text{safe}}$ alone — it requires the explicit non-degeneracy axiom (A3'') item 3.)
+
+The Lipschitz constant is
 $$
-L_{\text{QP}}^* \;:=\; \sup_{(t,x) \in \mathcal{M}} L_{\text{QP}}(t,x) \;\le\; \frac{1 + \kappa_\Lambda (d-1)}{2 r_{\text{safe}} \, \sigma_{\min}^{\text{geom}}}.
+\boxed{\;
+L_{\text{QP}}(t, r, v_a) \;=\; \frac{1 + \kappa_\lambda \cdot |\mathcal{N}_i^{\text{on}}(t)|}{\eta_a}, \qquad L_{\text{QP}}^* \;:=\; \sup_{(t, r, v_a) \in \mathcal{M}} L_{\text{QP}} \;\le\; \frac{1 + \kappa_\lambda}{\eta_a}.
+\;}
 $$
-Piecewise-affine on each stratum: Robinson (1980). Cross-stratum continuity follows from Lemma 5.6 (uniform dwell-time). ∎
+(For the v17 scalar control with $|\mathcal{N}_i^{\text{on}}| \le 1$ on $\mathcal{M}$ from (A5), $L_{\text{QP}}^* = (1+\kappa_\lambda)/\eta_a$.)
+
+**At the locus $D_{ij}$**: $|a_{ii}| < \eta_a$, the Hager constant blows up, and the Lipschitz claim fails. Filippov (1960) regularisation rescues the construction: the closed-loop solution is absolutely continuous, with $u_{2,i}(t)$ in the convex hull $\overline{\text{conv}}(K_i)$ along $D_{ij}$. The slack-penalty QP smooths this via the $\mathcal{O}(M^{-1/2})$ Tikhonov regularisation. Cross-stratum continuity (across $D_{ij}$ entry / exit and across hysteresis events) follows from Lemma 5.6 (uniform dwell-time, Krasnosel'skii-Pokrovskii 1989). ∎
 
 ---
 

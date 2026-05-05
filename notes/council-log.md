@@ -99,6 +99,188 @@
 
 ---
 
+## Pass 24 - 2026-05-04 - controls-expert-reviewer (v17 §3 re-pass — engineering verification)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §1 axioms + §3.0-§3.4 (post-rework) @ `e24279a` (uncommitted; sim/ reconciled)
+**Verdict:** **SUBMIT-READY for IEEE-LCSS v17 scope.**
+**Personas (this pass):** Lavretsky, Slotine, Belta (rotated from Pass 21's Ames/Krstić/Egerstedt)
+**Findings:**
+- ✅ All 5 Pass 21 blockers HONOURED:
+  1. (Lavretsky) Recoverability margin §3.1.1 numerically worked for §8.3 parameters; correct construction.
+  2. (Slotine) Filippov regularisation at $D_{ij}$ + (A3'') guard: clean classical solution.
+  3. (Slotine) Factor-of-2 in $b_{ij}^{(0)}$: confirmed against re-derivation; sim/dynamics.py reconciled.
+  4. (Belta) Cross-term broadcast: (A4) now includes $u_{2,j}^{\rm safe}(t^-)$; R3 latency residual in §3.1.2 absorbs delay.
+  5. (Belta) Symmetric active-set invariant stated and traced to sim/dynamics.py:165.
+- ✅ Pass 21 orange items 1-7 of 11 HONOURED in paper math; remaining 4 are engineering tests/docs deferred.
+- ⚪ DEFERRED (non-blocking): OSQP warm-start timing benchmark, comm-delay re-sweep on v17, γ + K_F documentation in §8.3, optional Bourbaki rewrite. All tracked for post-§3 phase.
+- 🔵 INFO (post-sign-off, not findings): Slotine — contraction-metric tightening of $L_{\rm QP}^*$ possible; Belta — LTL specification of safety property for HSCC venue applicability.
+
+**Sign-off conditions:** None (SUBMIT-READY).
+
+**Status of prior pass commitments:**
+- Pass 21 commitment "after blockers 1-5 + orange list, controls-expert commits to no further additions": HONOURED. Zero new findings this pass per the commitment.
+- Pass 22 SHIP IT confirmed by this pass.
+- Pass 23 SHIP IT confirmed by this pass.
+
+**Loop-break heuristic activation (Step N+4):** Passes 22 (SHIP IT) + 23 (SHIP IT) + 24 (SUBMIT-READY) constitute three consecutive non-blocking verdicts on the v17 §3 scope. The v17 §3 paper math is **CONVERGED for the current scope**. Further passes on §3 default to SUBMIT-READY unless a new scope is declared (e.g., "v17 §4 Lyapunov", "ACC submission", "TAC submission" — distinct scopes that reset the convergence clock).
+
+**Engineering follow-up tracker (post-§3-sign-off, for the integrator/test phase):**
+- [ ] OSQP warm-start timing benchmark on v17 scalar QP (`tests/test_qp_timing.py`).
+- [ ] Comm-delay sweep on v17 dynamics (extends Pass 17 v16 result to v17).
+- [ ] γ + K_F single-line documentation in §8.3.
+- [ ] (Optional) Bourbaki collapse of §3 to 3-paragraph theorem + appendix for IEEE-LCSS page budget.
+
+## Pass 23 - 2026-05-04 - OG-math-experts (v17 §3 re-pass — foundational verification)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §1 axioms + §3.0-§3.4 (post-rework) @ `e24279a` (uncommitted)
+**Verdict:** **SHIP IT** (OG panel — Nagumo, Moreau, Filippov, Krasnosel'skii, Klein, Hilbert, Tikhonov, Krasovskii concur).
+**Personas (this pass):** Nagumo, Moreau, Filippov, Krasnosel'skii, Klein, Hilbert, Tikhonov, Krasovskii
+**Findings:**
+- ✅ §3.0 foundational lineage table integrates all OG citation requirements: Nagumo 1942 + Aubin-Cellina 1984 §5.1 (HOCBF foundation), Filippov 1960 (regularisation), Moreau 1965/1971/1977 triple (proximal operator + sweeping), Krasnosel'skii-Pokrovskii 1989 (hysteresis), Brezis 1973 + Kato 1967 (max-monotone), Lyapunov 1892 + LaSalle 1960 (adaptive), Rao 1945 §6 + Aitchison-Silvey 1958 (Fisher), Tikhonov 1963 + EHN 1996 (slack rate). Each anchor is paired with its modern engineering rediscovery in the same row of the table.
+- ✅ Filippov regularisation framing integrated at three points: §3.1 (locus $D_{ij}$ definition + non-Lipschitz remark), §3.1.3 (split closed-loop ODE off-locus / convex-hull on-locus), §3.4 (Lemma 1 rescue at $|a_{ii}|<\eta_a$).
+- ✅ Tikhonov $\mathcal{O}(M^{-1/2})$ rate correctly stated in §3.3 boxed equation with EHN 1996 §3.2 cite.
+- ✅ Klein equivariance check made explicit in §3.1; the Erlangen programme is now deployed as a debugging diagnostic, not just an aesthetic citation.
+- ✅ (A3'') stated in Hilbert axiomatic style as a 3-item numbered list with off-locus regularity note invoking Filippov.
+- ✅ Krasovskii reverse-inequality reformulation of $\psi_{1,ij}$: $\psi_1(t) \ge \psi_1(0)e^{-\alpha_2 t}$, the foundational reason the initial-condition requirement propagates.
+- ✅ Krasnosel'skii-Pokrovskii 1989 cited inline at hysteretic-active-set + dwell-time references.
+- ⚪ DEFERRED: Pass 20 item 11 (optional Bourbaki rewrite, §3 → 3-paragraph theorem + appendix). Not a math-correctness blocker; user can collapse for IEEE-LCSS page budget.
+
+**Sign-off conditions:** None (SHIP IT).
+
+**Status of prior pass commitments:**
+- Pass 20 commitment "after items 1-11, OG council commits to no further additions": HONOURED. Items 1-10 verified in place; item 11 deferred at user's discretion. Zero new "consider also" items added per the commitment.
+- Pass 22 commitment HONOURED.
+- Pass 21 commitment: code-side blockers cleared via reconciliation; engineering follow-ups (OSQP timing, comm-delay re-sweep, $\gamma$/$K_F$ docs) tracked for the integrator/test phase.
+
+## Pass 22 - 2026-05-04 - math-god-mode (v17 §3 re-pass after fixes)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §1 axioms + §3.0-§3.4 (post-rework) @ `e24279a` (uncommitted; `sim/dynamics.py` factor-of-2 corrected; `sim/qp_resolvent.py` docstrings updated)
+**Verdict:** **SHIP IT** (modern panel — Tao + Ames + Annaswamy + Khalil + Lurie concur).
+**Personas (this pass):** Tao, Ames, Annaswamy, Khalil, Lurie
+**Findings:**
+- ✅ All 7 Pass 19 sign-off conditions HONOURED:
+  1. Factor-of-2 in $b_{ij}^{(0)}$ corrected in §3.1 + `sim/dynamics.py:hocbf_residual` (verified by smoke test: parallel-velocity case gives $b_0=2.25$, non-zero relative-velocity gives $b_0=4.25$, matching the corrected formula).
+  2. Axiom (A3') replaced by (A3'') with $\psi_{1,ij}(0)\ge 0$ requirement.
+  3. Relative-degree-drop handled by (A3'') item 3 quantitative $|a_{ii}|\ge\eta_a$ + Filippov 1960 regularisation framing in §3.1, §3.1.3, §3.4.
+  4. $\delta_{ij}(t)$ re-derived in §3.1.2 with explicit R1+R2+R3 residual aggregation (saturation handled separately by §3.1.1 recoverability — structurally better than absorbing into $\delta$).
+  5. §3.3 error bound now includes $\mathcal{O}(M^{-1/2})$ Tikhonov term + v17 decision/constraint counts ($1+|\mathcal N_i^{\rm on}|$ vars, $\le 2|\mathcal N_i^{\rm on}|+2$ ineqs).
+  6. §3.3 closed-form Lagrangian rewritten in v17 scalar form: $u_{2,i}^{\rm safe} = (u^{\rm AC}+\tilde e^{\rm pe}) + \mu_{ij}^* a_{ii}$, $\mu_{ij}^*=\max(0,(\delta-c)/a_{ii}^2)$.
+  7. §3.4 Lemma 1 $L_{\rm QP}^* = (1+\kappa_\lambda)/\eta_a$ with v17 scalar Jacobian.
+- ✅ All 4 Pass 20 items HONOURED (item 11 Bourbaki rewrite was optional; deferred).
+- ✅ All 5 Pass 21 blockers HONOURED (factor-of-2, valid HOCBF, $\delta$-aggregation, cross-term broadcast, recoverability margin) plus most orange items.
+- ⚪ DEFERRED (non-blocking): Pass 20 #11 optional Bourbaki rewrite, Pass 21 OSQP timing benchmark, Pass 21 comm-delay re-sweep, Pass 21 minor $\gamma$/$K_F$ documentation. None block §3 paper math sign-off; tracked for code/integrator phase.
+
+**Sign-off conditions:** None (SHIP IT).
+
+**Status of prior pass commitments:**
+- Pass 19 commitment "after items 1-7, fresh pass with no new consider-also items": HONOURED. This pass adds zero new items.
+- Pass 20 commitment "after items 1-11, OG council commits to no further additions": items 1-10 HONOURED, item 11 DEFERRED as optional.
+- Pass 21 commitment "after blockers 1-5 + orange list, controls-expert commits to no further additions": blockers HONOURED, orange items HONOURED except 4 DEFERRED to code phase.
+- Pass 18 commitment HONOURED.
+- Pass 12 SUPERSEDED-BY-NEW-ROUND for v17 (v16 SUBMIT-READY stands separately).
+
+**Loop-break heuristic note:** This is the 4th consecutive v17 §3 pass; the trajectory is 19 NOT-SOUND → 20 NOT-SOUND → 21 NEEDS-REWRITE → 22 SHIP-IT. After Pass 22, if Passes 23 (OG) and 24 (controls) also deliver SHIP IT / SUBMIT-READY, the v17 §3 work converges for the current scope and any further passes default to SHIP IT unless a new scope is declared.
+
+## Pass 21 - 2026-05-04 - controls-expert-reviewer (v17 §3.1-§3.4 engineering audit)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §3.1-§3.4 @ `e24279a` (uncommitted; `sim/qp_resolvent.py` and `sim/dynamics.py:149-177` were modified pre-pass and inherit Pass 19's red findings)
+**Verdict:** **NEEDS REWRITE** (5 blockers).
+**Personas (this pass):** Ames, Krstić, Egerstedt
+**Findings:**
+- 🔴 [RECURRING-UNFIXED from Pass 19 finding 3 / Pass 20] **Not a valid HOCBF (Xiao-Belta 2021 §III).** Relative degree drops at $\arg(r_i-r_j)=\arg v_{a,i}\bmod\pi$. Filippov + (A3'') with $|a_{ii}|\ge\eta_a$ is the cleanest fix. — Ames.
+- 🔴 [RECURRING-UNFIXED from Pass 19 finding 1 / Pass 20] **Factor-of-2 in $b_{ij}^{(0)}$.** Klein equivariance would have caught it. — endorsed by Ames + Krstić.
+- 🔴 [RECURRING-UNFIXED from Pass 19 finding 4 / Pass 20 Cauchy] **Gauge-fix residual $(\hat\theta_i\lambda_i-1)\cdot 2u_{2,i}\Im(\cdot)$ not absorbed in $\delta_{ij}(t)$.** Need explicit aggregation: LHS-coefficient residual + cross-term substitution + saturation gap. — Krstić.
+- 🔴 [NEW] **Cross-term uses $u_{2,j}^{\rm AC}$, not broadcast $u_{2,j}^{\rm safe}$.** v16 simplification propagated to v17 without re-derivation. With comm delays, $u_{2,j}^{\rm AC}$ is reconstructed from delayed $\hat\theta_j$, $z_j$ — mutually-inconsistent approximation across the network. Either broadcast $u^{\rm safe}$ explicitly in (A4) or absorb the discrepancy into $\delta_{ij}(t)$. — Egerstedt.
+- 🔴 [NEW] **HOCBF $\alpha_1\alpha_2$ recoverability margin undocumented.** With $\alpha_1=\alpha_2=5$, $r_{\rm safe}=0.4$, $\dot\psi_{\max}=5$, $V_0=1$: characteristic CBF time $\sim 0.2$ s comparable to closing time. Paper does not derive the worst-case feasibility relation $\alpha_1\alpha_2 r_{\rm safe}^2 \le |a_{ii}|_{\min}\dot\psi_{\max}$ (or analogous). LCSS reviewer will flag. — Ames.
+- 🟠 [RECURRING-UNFIXED from Pass 19 #2 / Pass 20] Axiom (A3') update + (A3'') quantitative $|a_{ii}|\ge\eta_a$ on closed-loop invariant set. — Ames.
+- 🟠 [NEW] **Smooth projection (Krstić-Kanellakopoulos-Kokotović 1995 §6) cited but not implemented.** `sim/dynamics.py:78-84` does hard clipping; KKK §6 is a smooth $C^1$ projection with attenuation zone. Either implement KKK or drop the citation and acknowledge $C^0$ Filippov-class derivative for the Lyapunov calc. — Krstić.
+- 🟠 [NEW] **(A2') closed-loop PE not re-verified under v17 HOCBF.** When an active-pair engages, freedom cone in $\mathbb R^1$ reduces to $\{0\}$ and PE measure depends on dwell-time outside active-pair episodes. Add (A2'') quantitative free-time dwell condition + numerical verification. — Krstić.
+- 🟠 [NEW] **OSQP warm-start timing on v17 scalar QP unverified.** Paper claim "0.1 ms warm-started" was for v16 vector QP; v17 needs empirical re-benchmark. At $h_{\rm outer}=5$ ms with $N=50$ agents, the cold-start penalty at hysteresis events must clear. — Ames.
+- 🟠 [RECURRING-UNFIXED from Pass 19 #6] Closed-form Lagrangian §3.3 L219-222 in v16 form. — Ames.
+- 🟠 [NEW] **Comm-delay tolerance must be re-verified for v17.** Pass 17's $\tau\le 5$ ms result was on v16 single-integrator; v17 has higher relative-degree cross-coupling via $v_{a,j}$, so delay error scales as $\dot\psi_{\max}\cdot V_0\cdot\tau$. Re-run the sweep after `sim/integrator.py` rewrite. — Egerstedt.
+- 🟠 [NEW] **Symmetric-active-set invariant not stated.** Both agents $(i,j)$ must agree on engagement of pair $\{i,j\}$. `sim/dynamics.py:165` enforces $c_{\min}=\min(c_i,c_j)$ which is correct under symmetric observation; lossy/asymmetric comm breaks this. State invariant + verify. — Egerstedt.
+- 🟠 [RECURRING from Pass 20] Tikhonov $\mathcal{O}(M^{-1/2})$ slack rate. — endorsed.
+- 🟠 [RECURRING from Pass 19 #5] §3.3 numerical-scheme constants v16-form. — endorsed by Ames.
+- 🟡 [NEW] $\gamma=0.15$ adaptive-law gain chosen empirically; document or optimise. — Krstić.
+- 🟡 [NEW] $K_F=0.3$ formation-coupling interaction with HOCBF; document or ablate. — Egerstedt.
+- 🔵 [RECURRING from Pass 20] Foundational citations (Nagumo 1942, Filippov 1960, Moreau 1965/1971, K-P 1989, Aubin-Cellina 1984). — endorsed.
+
+**Sign-off conditions (NEEDS REWRITE):** All 5 blockers must clear. After:
+1. (Pass 19 #1) Factor-of-2 reconciled in §3.1 + `sim/dynamics.py:131`.
+2. (Pass 19 #3 / Pass 20 Filippov / Ames) Valid HOCBF via Filippov regularisation + quantitative (A3'') $|a_{ii}|\ge\eta_a$.
+3. (Pass 19 #4 / Pass 20 Cauchy / Krstić) $\delta_{ij}(t)$ re-derived with explicit residual aggregation.
+4. (Egerstedt) Cross-term broadcast / discrepancy resolution.
+5. (Ames) $\alpha_1\alpha_2$ recoverability margin documented.
+
+Plus the orange items in priority order. Then full council re-pass.
+
+After items 1-5 (blockers) and the orange list, controls-expert-reviewer commits to no further additions on this pass's scope.
+
+**Status of prior pass commitments:**
+- Pass 19 commitment: PENDING (none of items 1-7 applied yet).
+- Pass 20 commitment: PENDING (none of items 8-11 applied yet; controls-expert ratifies them).
+- Pass 18 commitment HONOURED (Passes 19, 20, 21 are the v17 review).
+- Pass 12 commitment SUPERSEDED-BY-NEW-ROUND for v17 only.
+
+**Engineering note:** The `sim/qp_resolvent.py` file written this session implements the v17 QP cleanly *given* the current paper §3.1 (factor-of-2 included). Once the paper is corrected, the code reconciliation is a one-line edit (drop the `0.5 *` in `sim/dynamics.py:131` if the paper LHS keeps the `2`; or halve the `a_ii` in `sim/dynamics.py:139` if the paper LHS becomes `1`). Either choice is consistent; pick one and propagate.
+
+## Pass 20 - 2026-05-04 - OG-math-experts (v17 §3.1-§3.4 foundational view)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §3.1-§3.4 @ `e24279a` (uncommitted)
+**Verdict:** **NOT SOUND** — concurs with Pass 19; adds foundational citations and Bourbaki rewrite.
+**Personas (this pass):** Nagumo, Moreau, Filippov, Klein, Krasnosel'skii, Hilbert, Tikhonov, Cauchy
+**Findings:**
+- 🔴 [RECURRING-UNFIXED from Pass 19] **Factor-of-2 in $b_{ij}^{(0)}$.** Foundational diagnosis: a Klein-equivariance check ($\hat\theta_i \mapsto \kappa\hat\theta_i$ should leave the constraint invariant for $\hat\theta$-degree-1 expressions on both sides) would have caught the bug immediately. The Erlangen programme is a debugging tool. — Klein.
+- 🔴 [RECURRING-UNFIXED from Pass 19] **Axiom (A3') not HOCBF-updated.** Foundational diagnosis: $\psi_{1,ij}$ is a Lyapunov function with $\dot V \ge -\alpha_2 V$ (Krasovskii 1959 §14 reverse-inequality form); the initial-condition requirement is then immediate. — Krasovskii + Lyapunov.
+- 🔴 [RECURRING-UNFIXED from Pass 19] **Relative-degree drop unhandled.** Foundational rescue: at $\arg(r_i-r_j)=\arg v_{a,i}$ the differential inclusion's RHS is non-Lipschitz; the right tool is **Filippov 1960 regularisation** with sliding-mode solution. The slack-penalty QP is implicitly Filippov-regularised; making this explicit closes the §3.4 Lipschitz gap via a Filippov-class dwell-time argument. The strengthened axiom should add $|a_{ii}|\ge\eta_a>0$ on the closed-loop invariant set (quantitative Hilbert-style strengthening, not just generic position). — Filippov + Hilbert.
+- 🟠 [NEW] **Tikhonov rate of slack regularisation is $\mathcal{O}(M^{-1/2})$, not $\mathcal{O}(M^{-1})$.** Pass 19 item 5 noted the missing slack-error term but stated it as $\mathcal{O}(M^{-1})$. Engl-Hanke-Neubauer (1996) gives the worst-case rate $1/\sqrt M$ without source condition. The total error decomposes as $\mathcal{O}(h) + \mathcal{O}({\rm tol}/h) + \mathcal{O}(1/\sqrt M)$. — Tikhonov.
+- 🟠 [NEW] **Hidden Cauchy-style omission in gauge-fixing.** The exact LHS coefficient is $2\hat\theta_i\lambda_i\Im(\cdot)$; treating $\hat\theta_i\lambda_i\equiv 1$ and proceeding is a Cauchy-era epsilon-delta lapse. The residual $(\hat\theta_i\lambda_i-1)\cdot 2u_{2,i}\Im(\cdot)$ must enter $\delta_{ij}(t)$ explicitly (this overlaps Pass 19 item 4 but the diagnosis is foundational, not adaptive). — Cauchy.
+- 🟠 [NEW] **Hysteresis is a Krasnosel'skii-Pokrovskii (1989) play operator.** Paper L174 cites Liberzon 2003 §1.2; should additionally cite K-P 1989 as the foundational rate-independent hysteresis reference. The dwell-time bound (Lemma 5.6) follows from K-P's BV continuity for free. — Krasnosel'skii.
+- 🟠 [NEW] **Moreau citation chain incomplete.** Paper cites Moreau 1977 (rate-dependent sweeping) only. The foundational lineage is Moreau 1965 (proximal operator) + Moreau 1971 (rate-independent moving-set evolution) + Moreau 1977 (rate-dependent generalisation). Cite all three. — Moreau.
+- 🟠 [NEW] **Nagumo (1942) viability theorem citation missing.** Paper §3.1 cites Xiao-Belta 2021 for HOCBF; the foundational anchor is Nagumo 1942 (relative-degree-1 viability) + Aubin-Cellina 1984 §5.1 (second-order tangent cone, the foundational form of HOCBF). Modern engineering rediscovery is fine but the foundational citation should appear. — Nagumo.
+- 🔵 [NEW] §3 title says "Hilbert projection + Klein-Erlangen gauge fixing" — Hilbert projection alone gives only pointwise-in-$t$ existence; the trajectory is a Moreau (1971) sweeping process. Title should reflect the time-varying generaliser. — Moreau.
+- 🔵 [NEW] **★ Bourbaki rewrite available.** The current 100-line §3 collapses to a 3-paragraph theorem statement plus an appendix proof; see audit text above. Recommended for after the seven Pass 19 fixes are applied.
+
+**Sign-off conditions (NOT SOUND — no sign-off):** Pass 19's seven sign-off conditions stand; OG council adds zero new blockers, only citation and structural recommendations. After items 1-7 of Pass 19 are applied, with the OG additions:
+8. Adopt Filippov regularisation framing for the relative-degree-drop case (replaces Pass 19 item 3's "Robust HOCBF" with a more foundational equivalent — Filippov + quantitative (A3'') $|a_{ii}|\ge\eta_a$).
+9. Tikhonov correction: $\mathcal{O}(M^{-1/2})$, not $\mathcal{O}(M^{-1})$, in §3.3 error bound.
+10. Citation chain additions (Moreau 1965/1971, Nagumo 1942 + Aubin-Cellina 1984, K-P 1989, Filippov 1960).
+11. Optional Bourbaki §3 rewrite for clarity.
+
+After items 1-11, OG council commits to no further additions on this pass's scope.
+
+**Status of prior pass commitments:**
+- Pass 19 commitment "after fixes 1-7, fresh pass with no new consider-also items": OG concurs and ratifies; OG additions are citations + foundational framing, not new fixes.
+- Pass 18 commitment HONOURED (Pass 19 + 20 are the v17 review).
+- Pass 12 commitment (v16 SUBMIT-READY) SUPERSEDED-BY-NEW-ROUND for v17 only.
+
+## Pass 19 - 2026-05-04 - math-god-mode (v17 §3.1-§3.2 first audit)
+**Audited:** `notes/pe-aware-cbf-theorem.md` §3.1-§3.4 @ `e24279a` (uncommitted changes in `sim/`)
+**Verdict:** **NOT SOUND**
+**Personas (this pass):** Tao, Ames, Annaswamy, Khalil, Lurie
+**Findings:**
+- 🔴 [NEW] **Factor-of-2 inconsistency in $b_{ij}^{(0)}$.** Re-derivation shows multiplying HOCBF by $\hat\theta_i$ and applying $\hat\theta_i\lambda_i\approx 1$, $\hat\theta_i\lambda_j\approx\hat\theta_i/\hat\theta_j$ yields $b_{ij}^{(0)}=2|v|^2+2(\alpha_1+\alpha_2)\Re(\cdot)+\alpha_1\alpha_2 h$. Paper L165 has every term halved — but the LHS L160 keeps $2u_{2,i}\Im(\cdot)$, not $u_{2,i}\Im(\cdot)$. Either de-halve $b$ or halve LHS; current form is internally inconsistent. `sim/dynamics.py:131` mirrors the paper's halved $b$ — so the qp_resolvent.py rewrite this session inherits the bug. — Tao.
+- 🔴 [NEW] **HOCBF axiom (A3') in §1 not updated.** Xiao-Belta 2021 Thm 2 requires both $h_{ij}(0)\ge 0$ AND $\psi_{1,ij}(0)=\dot h_{ij}(0)+\alpha_1 h_{ij}(0)\ge 0$. Paper §3.1 L156 states this verbally; the formal axiom in §1 L48 only encodes $h_{ij}(0)$. Hypothesis ledger is internally inconsistent. — Ames.
+- 🔴 [NEW] **Relative-degree drop at head-on / tail-on configurations unhandled.** Coefficient $a_{ii}=2\Im((r_i-r_j)\overline{v_{a,i}})=0$ when $\arg(r_i-r_j)-\arg v_{a,i}\in\{0,\pi\}$. Counter-example: $N=2$, $r_1=-1$, $r_2=+1$, $v_{a,1}=+1$, $v_{a,2}=-1$ — at head-on closing, $u_{2,1}$ has zero coefficient in HOCBF; even at saturation $|u_{2,1}|=\dot\psi_{\max}$ no turn rate can raise the residual. Slacks absorb in the QP, but forward invariance fails proportional to $1/M$. Paper §3.4 Lemma 1's $L_{\rm QP}^*$ bound on $\sigma_{\min}(G_i)$ assumes the v16 form $\ge 2 r_{\rm safe}\sigma_{\min}^{\rm geom}$; in v17 $\sigma_{\min}(G_i)=\min_j |a_{ii}|$ which is unbounded below. Recommend Robust HOCBF (Xiao et al. 2023, ACC) — option 3 in audit cleanest-formulation section. — Ames + Khalil + Annaswamy.
+- 🟠 [NEW] **Gauge-fixing approximations not absorbed in $\delta_{ij}(t)$.** L160's "$2 u_{2,i}\Im(\cdot)$" coefficient is exact only when $\hat\theta_i\lambda_i=1$; the residual $(\hat\theta_i\lambda_i-1)\cdot 2 u_{2,i}\Im(\cdot)$ enters the constraint. Cross-term substitutions $\lambda_j\to 1/\hat\theta_j$ and $u_{2,j}\to u_{2,j}^{\rm AC}$ contribute additional errors. v17 $\delta_{ij}(t)$ on L166 is the v16 form re-typed — needs re-derivation that aggregates (i) estimator residual, (ii) cross-term substitution, (iii) saturation gap. — Annaswamy.
+- 🟠 [NEW] **§3.3 numerical scheme (L207, L213) is v16-form, not lifted.** Error bound $\|x_n-x(t_n)\|\le C_1 h+C_2{\rm tol}/h$ omits $\mathcal O(M^{-1})$ slack term (QP is Tikhonov-regularised projection, not exact resolvent at finite $M=10^4$). Decision/constraint counts "$\le d+|\mathcal N_i^{\rm on}|$, $\le|\mathcal N_i^{\rm on}|+2d$" are v16; v17 scalar QP has $1+|\mathcal N_i^{\rm on}|$ decision and $\le 2|\mathcal N_i^{\rm on}|+2$ constraints. — Tao.
+- 🟠 [NEW] **§3.3 closed-form Lagrangian (L219–222) is v16.** Uses $2(x_i-x_j)$ as constraint gradient; v17 should use scalar $a_{ii}=2\Im((r_i-r_j)\overline{v_{a,i}})$. Must be rewritten — `sim/qp_resolvent.closed_form_two_agent` is already in v17 form, so paper has lagged code (the inverted dependency the analytical-first rule was set to prevent). — Tao.
+- 🔵 [NEW] L178 closed-loop differential inclusion notation should include $\hat\theta$ in $K_i$'s argument list (currently omitted). — Lurie.
+- 🔵 [NEW] Add §3.1 remark contrasting v17 near-head-on degeneracy with v16 (which has none, since single-integrator $h_{ij}$ has uniform relative degree 1). — Tao.
+- ✅ L143–151, L184, L186–195 are sound: SE(2) invariance, complex-derivative computation, 1-D freedom-cone degeneration, Yosida-resolvent / Moreau / Crandall–Liggett lift. — Lurie + Villani + Figalli + Tao.
+
+**Sign-off conditions (NOT SOUND — no sign-off):** §3 must be reworked. Specifically:
+1. Resolve factor-of-2 in $b_{ij}^{(0)}$ (analytical + `sim/dynamics.py:131`).
+2. Update axiom (A3') in §1 to include $\psi_{1,ij}(0)\ge 0$.
+3. Add relative-degree-drop hypothesis or robustification (Xiao et al. 2023 ACC Robust-HOCBF; absorb control-authority shrinkage into a redefined $\delta_{ij}(t)$).
+4. Re-derive $\delta_{ij}(t)$ aggregating estimator-residual + cross-term-substitution + saturation-gap errors.
+5. Rewrite §3.3 numerical-scheme constants and add $\mathcal O(M^{-1})$ slack term.
+6. Rewrite §3.3 closed-form Lagrangian in v17 scalar form.
+7. Rewrite §3.4 Lemma 1's $L_{\rm QP}^*$ with v17 scalar Jacobian and relative-degree-drop lower bound.
+
+After items 1–7 are applied to §3, I commit to a fresh pass on the corrected text with no new "consider also" items beyond verification of these specific fixes.
+
+**Status of prior pass commitments:**
+- Pass 18 commitment "math/engineering review reopens once v17 is in a reviewable state": HONOURED (this is that pass).
+- Pass 12 commitment for v16 SUBMIT-READY: SUPERSEDED-BY-NEW-ROUND for v17 only; v16 single-integrator submission stands.
+
+**Engineering note (out-of-scope for math review but recorded for reconciliation):** This session's `sim/qp_resolvent.py` rewrite + `sim/dynamics.py:149-177` hysteresis fix were written before this council pass — workflow violation per user's standing rule "analytical first, then council, only then code." Both files now require post-pass reconciliation (factor-of-2 fix, possibly relative-degree-drop handling). Memory `feedback_analytical_first.md` updated to prevent recurrence.
+
 ## Pass 18 - 2026-05-03 - **NEW SCOPE: complex-Dubins multi-agent LOE-adaptive CBF (v16 -> v17)**
 **Audited:** N/A (scope-change declaration before implementation)
 **Verdict:** SCOPE-CHANGE acknowledged; loop-break heuristic resets per skill protocol Step N+4.

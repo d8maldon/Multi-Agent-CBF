@@ -121,14 +121,21 @@ def cbf_h_dot(r_i: complex, r_j: complex, v_i: complex, v_j: complex) -> float:
 
 def hocbf_residual(r_i: complex, r_j: complex,
                    v_i: complex, v_j: complex, h_val: float) -> float:
-    """[§3.1 v17]: theta-independent part of HOCBF condition (everything except
-    the u_2 term):
-        b_ij^(0) = |v_i - v_j|^2 + (alpha_1+alpha_2) Re((r_i-r_j) conj(v_i-v_j))
-                   + (alpha_1*alpha_2 / 2) * h_ij
+    """[§3.1 v17, council Pass 19/20/21]: theta-independent part of the HOCBF
+    condition (everything except the u_2 terms), in the corrected form:
+
+        b_ij^(0) = 2|v_i - v_j|^2
+                 + 2(alpha_1 + alpha_2) Re((r_i - r_j) conj(v_i - v_j))
+                 + alpha_1 * alpha_2 * h_ij.
+
+    Earlier drafts had every term halved by 2 (factor-of-2 inconsistency caught
+    by Pass 19 Tao + Pass 20 Klein-equivariance check). The correct factors come
+    from substituting ddot h = 2|v|^2 + ... and dot h = 2 Re(...) into the HOCBF
+    inequality ddot h + (a1+a2) dot h + a1*a2 h >= 0, then multiplying by hat_theta_i.
     """
-    return (np.abs(v_i - v_j) ** 2
-            + (pp.ALPHA_1 + pp.ALPHA_2) * np.real((r_i - r_j) * np.conj(v_i - v_j))
-            + 0.5 * pp.ALPHA_1 * pp.ALPHA_2 * h_val)
+    return (2.0 * np.abs(v_i - v_j) ** 2
+            + 2.0 * (pp.ALPHA_1 + pp.ALPHA_2) * np.real((r_i - r_j) * np.conj(v_i - v_j))
+            + pp.ALPHA_1 * pp.ALPHA_2 * h_val)
 
 
 def hocbf_jacobian_self(r_i: complex, r_j: complex, v_i: complex) -> float:
@@ -149,19 +156,28 @@ def hocbf_jacobian_other(r_i: complex, r_j: complex, v_j: complex) -> float:
 def update_hysteresis(r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
                       u_2_AC: np.ndarray, pair_active_in: dict, edges: tuple) -> dict:
     """[§3.1 v17]: hysteretic active-set selection. Engagement when c_ij <= eps,
-    disengagement when c_ij >= 2 eps; eps = paper §8.3 value."""
+    disengagement when c_ij >= 2 eps; eps = paper §8.3 value.
+
+    The c_{ij} value evaluated here matches the gauge-fixed constraint LHS in
+    qp_resolvent.solve_qp (paper §3.1 line 159), including the theta_i/theta_j
+    factor on the cross-coupled neighbour term."""
     new_active = dict(pair_active_in)
     for (i, j) in edges:
         h_val = cbf_h(r[i], r[j])
+        # Agent i's view of the constraint
         b0_i = hocbf_residual(r[i], r[j], v_a[i], v_a[j], h_val)
         a_ii = hocbf_jacobian_self(r[i], r[j], v_a[i])
         a_ij = hocbf_jacobian_other(r[i], r[j], v_a[j])
-        c_i = a_ii * u_2_AC[i] + a_ij * u_2_AC[j] + theta_hat[i] * b0_i
-        # Symmetric for agent j
+        c_i = (a_ii * u_2_AC[i]
+               + (theta_hat[i] / theta_hat[j]) * a_ij * u_2_AC[j]
+               + theta_hat[i] * b0_i)
+        # Symmetric for agent j (b0 is symmetric: |v_i - v_j|^2 etc.)
         b0_j = hocbf_residual(r[j], r[i], v_a[j], v_a[i], h_val)
         a_jj = hocbf_jacobian_self(r[j], r[i], v_a[j])
         a_ji = hocbf_jacobian_other(r[j], r[i], v_a[i])
-        c_j = a_jj * u_2_AC[j] + a_ji * u_2_AC[i] + theta_hat[j] * b0_j
+        c_j = (a_jj * u_2_AC[j]
+               + (theta_hat[j] / theta_hat[i]) * a_ji * u_2_AC[i]
+               + theta_hat[j] * b0_j)
         c_min = min(c_i, c_j)
         key = frozenset({i, j})
         if new_active.get(key, False):
@@ -173,10 +189,40 @@ def update_hysteresis(r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
     return new_active
 
 
-def cbf_tightening_delta(P_i: float, D_max: float) -> float:
-    """[§3.1 v17]: time-varying CBF tightening from KB filter.
+def cbf_tightening_delta(P_i: float, P_j: float,
+                          a_ii: float, a_ij: float,
+                          theta_i: float, theta_j: float,
+                          tau_d: float = 0.0,
+                          zeta_0: float = 1e-3) -> float:
+    """[§3.1.2 v17, council Pass 19/20/21]: time-varying CBF tightening with
+    explicit residual aggregation.
 
-        delta_ij(t) = 2 * D_max * (sqrt(P_i) / theta_min) * V_0 * |u_2_max|
+        delta_ij(t) = psi_dot_max * (|a_ii| * eps_1 + |a_ij| * eps_2)
+                    + (theta_i / theta_j) * |a_ij| * eps_3(tau_d)
+                    + zeta_0
+
+    where:
+        eps_1   = theta_max * sqrt(P_i) / theta_min            [LHS-coeff residual]
+        eps_2   = theta_max^2 * sqrt(P_j) / theta_min^2        [cross-term residual]
+        eps_3   = L_QP * tau_d  ~  (1+kappa_lambda) * psi_dot_max * tau_d
+                                                                [latency residual]
+        zeta_0  = small positive baseline (Lemma 5.2 baseline; default 1e-3)
+
+    Vanishes as P_i, P_j -> 0 (estimator convergence) and tau_d -> 0
+    (continuous-time broadcast).
+
+    For tau_d = 0 (the default in this codebase), eps_3 contribution is zero.
+
+    Earlier v16 / draft-v17 used a single-scalar form
+        delta_ij(t) = 2 * D_max * sqrt(P_i) / theta_min * V_0 * psi_dot_max
+    which used worst-case D_max bounds instead of the per-pair |a_ii|, |a_ij|
+    entries; the v17 form here is tighter on the closed-loop trajectory.
     """
-    return (2.0 * D_max * np.sqrt(max(P_i, 0.0)) / pp.THETA_MIN
-            * pp.V_0 * pp.PSI_DOT_MAX)
+    eps_1 = pp.THETA_MAX * np.sqrt(max(P_i, 0.0)) / pp.THETA_MIN
+    eps_2 = pp.THETA_MAX ** 2 * np.sqrt(max(P_j, 0.0)) / pp.THETA_MIN ** 2
+    delta = pp.PSI_DOT_MAX * (abs(a_ii) * eps_1 + abs(a_ij) * eps_2) + zeta_0
+    if tau_d > 0.0:
+        L_qp_upper = (1.0 + pp.KAPPA_LAMBDA) * pp.PSI_DOT_MAX
+        eps_3 = L_qp_upper * tau_d
+        delta += (theta_i / theta_j) * abs(a_ij) * eps_3
+    return delta

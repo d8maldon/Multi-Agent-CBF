@@ -1,12 +1,38 @@
 """Per-agent QP-resolvent (Moreau proximal operator on the time-varying convex
-constraint set), line-by-line from §3.2 of v14.
+constraint set), v17 scalar-u_2 / HOCBF form, council-vetted (Passes 19-21).
 
-Solves [§3.2 boxed eq lines 109-117]:
-    u_i^safe = argmin_u  ||u - (u_i^AC + Proj_F e_i^pe)||^2 + M sum slack_ij^2
-    s.t.   c_ij(u_i; ...) >= delta_ij(t),  for j in N_i^on(t),
-           ||u||_inf <= u_max,
-           slack_ij >= 0
-where c_ij is the gauge-fixed constraint [§2.1 eq line 82].
+Solves [§3.2 v17 boxed equation, after gauge-fixing of §3.1]:
+    u_{2,i}^{safe} = argmin_{u_2}  (u_2 - (u_{2,i}^{AC} + tilde_e_i^{pe}))^2
+                                   + M sum_{j in N_i^on} s_{ij}^2
+    s.t.   c_{ij}(u_{2,i}; r, v_a, hat_theta) >= delta_{ij}(t),  for j in N_i^on(t),
+           |u_{2,i}| <= psi_dot_max,
+           s_{ij} >= 0
+where, with a_ii = +2 Im((r_i - r_j) conj(v_{a,i})) and
+       a_ij = -2 Im((r_i - r_j) conj(v_{a,j})):
+    c_{ij}(u_{2,i}; r, v_a, hat_theta)
+        := a_ii * u_{2,i}
+         + (hat_theta_i / hat_theta_j) * a_ij * u_{2,j}^{safe}(t^-)
+         + hat_theta_i * b_{ij}^{(0)}                      [§3.1 v17 boxed]
+    b_{ij}^{(0)} := 2|v_{a,i} - v_{a,j}|^2
+                  + 2(alpha_1 + alpha_2) Re((r_i - r_j) conj(v_{a,i} - v_{a,j}))
+                  + alpha_1 * alpha_2 * h_{ij}             [§3.1 v17 corrected]
+
+(Earlier drafts had every term in b_{ij}^{(0)} halved by 2 — caught by Pass 19
+Tao + Pass 20 Klein equivariance check. The form above is consistent with
+a_ii = 2 Im(...) and the HOCBF condition multiplied through by hat_theta_i.)
+
+The decision variable is the scalar real turn rate u_{2,i} in R; one slack
+s_{ij} >= 0 per active pair. Cf. v16 (single-integrator, vector-u) where the
+decision was u_i in R^d.
+
+Cross-term semantics (Pass 21 / Egerstedt):
+    Per axiom (A4) v17, agent i receives u_{2,j}^{safe}(t^-) — the most-recent
+    past broadcast of agent j's safety-filtered command. This avoids algebraic
+    loops: the v17 integrator stores last-step u_{2,j}^{safe} in
+    `state.last_u_safe` and passes it here as `u_2_neighbour_broadcast`.
+    With tau_d=0 (continuous-time broadcast), this is u_{2,j}^{safe}(t).
+    With tau_d > 0, the broadcast residual is absorbed into delta_{ij}(t)
+    via dynamics.cbf_tightening_delta (eps_3 term, §3.1.2).
 """
 
 from __future__ import annotations
@@ -19,75 +45,104 @@ from . import paper_params as pp
 from . import dynamics as dyn
 
 
-def solve_qp(i: int, x: np.ndarray, theta_hat: np.ndarray, u_AC: np.ndarray,
-             pe_projected_i: np.ndarray, pair_active: dict, edges: tuple,
-             delta_ij: dict, solver_cache: dict) -> tuple:
-    """Solve agent i's per-agent QP-resolvent [§3.2].
+def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
+             u_2_AC: np.ndarray, pe_projected_i: float, pair_active: dict,
+             edges: tuple, delta_ij: dict, solver_cache: dict) -> tuple:
+    """Solve agent i's per-agent QP-resolvent [§3.2 v17].
 
-    Decision vector v = [u (d,), s_1, ..., s_k] with k = |active pairs|.
+    Parameters
+    ----------
+    i               : agent index.
+    r               : (N,) complex array, positions r_j = x_j + i y_j.
+    v_a             : (N,) complex array, velocity-along-heading v_{a,j}.
+    theta_hat       : (N,) real array, parameter estimates (1/lambda_j).
+    u_2_AC          : (N,) real array, neighbour broadcast for the cross-term.
+                      Per axiom (A4) v17, this should be u_{2,j}^{safe}(t^-) —
+                      the most-recent past broadcast of agent j's safety-filtered
+                      command, stored by the integrator in `state.last_u_safe`.
+                      The legacy v16 callers passed u_{2,j}^{AC} = theta_j *
+                      u_{2,j}^{ref} (the assumed-correct command); the residual
+                      from this substitution is absorbed into delta_{ij}(t)
+                      (eps_2 term in dynamics.cbf_tightening_delta, §3.1.2).
+                      Param name kept as `u_2_AC` for backward compat.
+    pe_projected_i  : scalar real, freedom-cone-projected PE for agent i.
+                      In 1-D control space the freedom cone is either {0} or R;
+                      caller is expected to pass 0 when any pair is active
+                      (axiom (A2'') free-time dwell condition gates PE injection).
+    pair_active     : {frozenset({i,j}): bool} hysteretic active set
+                      (Krasnosel'skii-Pokrovskii 1989 play operator).
+    edges           : tuple of (i,j) pairs.
+    delta_ij        : {frozenset({i,j}): float} CBF tightening, computed via
+                      dynamics.cbf_tightening_delta (§3.1.2 residual aggregation).
+    solver_cache    : per-agent OSQP problem cache, keyed on active-set sig.
 
-    Returns (u_safe_i, slack_vec, status_string).
+    Returns
+    -------
+    u_2_safe_i      : scalar safe turn rate.
+    slack_vec       : (k,) array of slack values, k = |active pairs|.
+    status_string   : OSQP status (or "FALLBACK (...)" if QP failed).
     """
-    d = x.shape[1]
-    target = u_AC[i] + pe_projected_i
+    target = float(u_2_AC[i] + pe_projected_i)
 
     active_pairs = [j for j in dyn.neighbours(i, edges)
                     if pair_active.get(frozenset({i, j}), False)]
     k = len(active_pairs)
-    n = d + k                                        # decision dimension
+    n = 1 + k                                      # decision dim: u_2 + slacks
 
-    # Quadratic cost Hessian [§3.2 line 116]:
-    #   H = diag(2 I_d, 2 M I_k)
-    P_diag = np.concatenate([2.0 * np.ones(d), 2.0 * pp.SLACK_PENALTY * np.ones(k)])
+    # Quadratic cost Hessian [§3.2 v17]:
+    #   0.5 v^T P v + q^T v with P = diag(2, 2M, ..., 2M)
+    P_diag = np.concatenate([[2.0], 2.0 * pp.SLACK_PENALTY * np.ones(k)])
     P_mat = sparse.diags(P_diag).tocsc()
 
-    # Linear cost: derived from expansion of  ||u - target||^2 = u^T u - 2 target^T u + const
-    q_vec = np.concatenate([-2.0 * target, np.zeros(k)])
+    # Linear cost: from (u_2 - target)^2 = u_2^2 - 2 target u_2 + const
+    q_vec = np.concatenate([[-2.0 * target], np.zeros(k)])
 
-    # Constraint rows
     rows = []
     l_vec = []
     u_vec = []
 
-    # CBF constraints, one per active pair  [§2.1 line 82]
+    # HOCBF constraints, one per active pair  [paper §3.1 line 159-162]
     for k_idx, j in enumerate(active_pairs):
-        x_diff = x[i] - x[j]
-        h_ij = dyn.cbf_h(x[i], x[j])
-        # Gauge-fixed constraint:
-        #   2(x_i-x_j)^T u_i  +  b_ij  +  alpha theta_i h_ij  +  slack >=  delta_ij
-        # where b_ij = -2 (theta_i / theta_j)(x_i-x_j)^T u_j^AC
-        b_ij = -2.0 * (theta_hat[i] / theta_hat[j]) * np.dot(x_diff, u_AC[j])
+        h_val = dyn.cbf_h(r[i], r[j])
+        b0_ij = dyn.hocbf_residual(r[i], r[j], v_a[i], v_a[j], h_val)
+        a_ii = dyn.hocbf_jacobian_self(r[i], r[j], v_a[i])
+        a_ij = dyn.hocbf_jacobian_other(r[i], r[j], v_a[j])
+
+        # Gauge-fixed cross-term carries factor (hat_theta_i / hat_theta_j)
+        # [§3.1 v17 line 161]; the decision-variable coefficient itself is
+        # hat_theta-INDEPENDENT, exactly as in v16 [§3.1 v17 line 168].
+        cross_term = (theta_hat[i] / theta_hat[j]) * a_ij * float(u_2_AC[j])
+        rhs_const = (delta_ij.get(frozenset({i, j}), 0.0)
+                     - cross_term
+                     - theta_hat[i] * b0_ij)
+
         row = np.zeros(n)
-        row[:d] = 2.0 * x_diff
-        row[d + k_idx] = 1.0
+        row[0] = a_ii
+        row[1 + k_idx] = 1.0                       # +slack_{ij}
         rows.append(row)
-        rhs = (delta_ij.get(frozenset({i, j}), 0.0)
-               - b_ij
-               - pp.ALPHA * theta_hat[i] * h_ij)
-        l_vec.append(rhs)
+        l_vec.append(rhs_const)
         u_vec.append(np.inf)
 
     # slack >= 0
     for k_idx in range(k):
         row = np.zeros(n)
-        row[d + k_idx] = 1.0
+        row[1 + k_idx] = 1.0
         rows.append(row)
         l_vec.append(0.0)
         u_vec.append(np.inf)
 
-    # Saturation: -u_max <= u_dim <= u_max  [§2.1 line 92]
-    for k_dim in range(d):
-        row = np.zeros(n)
-        row[k_dim] = 1.0
-        rows.append(row)
-        l_vec.append(-pp.U_MAX)
-        u_vec.append(pp.U_MAX)
+    # Saturation: -psi_dot_max <= u_2 <= psi_dot_max  [§3.1 v17 line 174]
+    sat_row = np.zeros(n)
+    sat_row[0] = 1.0
+    rows.append(sat_row)
+    l_vec.append(-pp.PSI_DOT_MAX)
+    u_vec.append(pp.PSI_DOT_MAX)
 
-    A_mat = sparse.csc_matrix(np.array(rows)) if rows else sparse.csc_matrix((0, n))
+    A_mat = sparse.csc_matrix(np.array(rows))
     l_arr = np.array(l_vec)
     u_arr = np.array(u_vec)
 
-    # Solver caching keyed on (agent, active-set signature) [§3.3 numerical scheme]
+    # Solver caching keyed on (agent, active-set signature) [§3.3 v17]
     cache_key = (i, tuple(active_pairs))
     cached = solver_cache.get(cache_key)
     if cached is None:
@@ -104,7 +159,37 @@ def solve_qp(i: int, x: np.ndarray, theta_hat: np.ndarray, u_AC: np.ndarray,
     res = prob.solve()
     if res.info.status_val not in (1, 2):
         # Fallback: clipped target. Slack = 0 by convention.
-        u_safe_fallback = np.clip(target, -pp.U_MAX, pp.U_MAX)
+        u_safe_fallback = float(np.clip(target, -pp.PSI_DOT_MAX, pp.PSI_DOT_MAX))
         return u_safe_fallback, np.zeros(k), f"FALLBACK ({res.info.status})"
 
-    return res.x[:d].copy(), res.x[d:].copy(), res.info.status
+    return float(res.x[0]), res.x[1:].copy(), res.info.status
+
+
+def closed_form_two_agent(i: int, j: int, r: np.ndarray, v_a: np.ndarray,
+                          theta_hat: np.ndarray, u_2_AC: np.ndarray,
+                          pe_projected_i: float, delta_val: float) -> float:
+    """Closed-form Lagrangian solution for N=2, single active pair [§3.3 v17].
+
+    Used as a unit test for the OSQP wrapper before scaling to N >= 3.
+
+    For agent i with one active CBF constraint vs j and no saturation binding:
+        u_{2,i}^{safe} = (u_{2,i}^{AC} + tilde_e_i^{pe})  +  mu_ij * a_{ii}
+        mu_ij = max(0, (delta - c(u_AC + e_pe)) / a_ii^2)
+    where c(*) is the LHS of the gauge-fixed HOCBF constraint at u = u_AC + e_pe.
+
+    Returns u_{2,i}^{safe} (NOT clipped to saturation; caller clips if needed).
+    """
+    h_val = dyn.cbf_h(r[i], r[j])
+    b0_ij = dyn.hocbf_residual(r[i], r[j], v_a[i], v_a[j], h_val)
+    a_ii = dyn.hocbf_jacobian_self(r[i], r[j], v_a[i])
+    a_ij = dyn.hocbf_jacobian_other(r[i], r[j], v_a[j])
+    target = float(u_2_AC[i] + pe_projected_i)
+    cross_term = (theta_hat[i] / theta_hat[j]) * a_ij * float(u_2_AC[j])
+    c_at_target = a_ii * target + cross_term + theta_hat[i] * b0_ij
+    if c_at_target >= delta_val:
+        return target
+    if abs(a_ii) < 1e-12:
+        # Degenerate: constraint independent of u_2 at this state; cannot fix.
+        return target
+    mu = (delta_val - c_at_target) / (a_ii ** 2)
+    return target + mu * a_ii
