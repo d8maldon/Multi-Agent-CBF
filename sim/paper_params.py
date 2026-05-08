@@ -313,6 +313,61 @@ OBSTACLE_LIST = (
 )
 
 
+# ---------------------------------------------------------------------------
+# §VIII Diamond formation (rendezvous-with-obstacles) demo
+# ---------------------------------------------------------------------------
+# 4 vehicles start at outer-square corners and must rendezvous to a diamond
+# (rotated-square) formation centred at the origin. Each vehicle's terminal
+# heading points at the NEXT CW vehicle in the diamond (pursuit-curve
+# pattern; classical 4-bug problem: 4 mice/dogs/birds at square corners
+# each chasing the next CW). A central circular obstacle blocks the
+# straight-line approach, forcing each vehicle to detour around it.
+
+DIAMOND_RADIUS = 3.0      # diamond inscribed in radius-3 circle
+
+# Initial positions: 4 vehicles at outer-square corners (radius 5*sqrt(2))
+DIAMOND_R0 = np.array([
+    -5.0 - 5.0j,    # vehicle 0: SW corner
+    +5.0 - 5.0j,    # vehicle 1: SE corner
+    +5.0 + 5.0j,    # vehicle 2: NE corner
+    -5.0 + 5.0j,    # vehicle 3: NW corner
+], dtype=complex)
+
+# Targets (diamond vertices at radius 3): CW assigned to nearest corner
+# - SW (-5,-5) -> S (0,-3)
+# - SE (+5,-5) -> E (+3,0)
+# - NE (+5,+5) -> N (0,+3)
+# - NW (-5,+5) -> W (-3,0)
+DIAMOND_TARGETS = np.array([
+     0.0 - 3.0j,    # vehicle 0 -> S vertex
+    +3.0 + 0.0j,    # vehicle 1 -> E vertex
+     0.0 + 3.0j,    # vehicle 2 -> N vertex
+    -3.0 + 0.0j,    # vehicle 3 -> W vertex
+], dtype=complex)
+
+DIAMOND_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
+
+# Single central obstacle blocks the straight-line approaches.
+DIAMOND_OBSTACLE_LIST = (
+    (0.0 + 0.0j, 1.0),       # central obstacle, radius 1.0
+)
+
+
+def diamond_v0() -> np.ndarray:
+    """Initial v_{a,i}(0): heading toward assigned diamond vertex (target)."""
+    direction = DIAMOND_TARGETS - DIAMOND_R0
+    direction = direction / np.abs(direction)
+    return V_0 * direction
+
+
+def diamond_targets_static(t: float) -> np.ndarray:
+    """[§VIII diamond rendezvous]: static targets at the diamond vertices.
+    Targets are FIXED — vehicles drive toward fixed points, with central
+    obstacle forcing detours.
+    """
+    return DIAMOND_TARGETS.copy()
+
+
 def obstacle_v0() -> np.ndarray:
     """Initial v_{a,i}(0): heading toward diagonal target (cross-swap-style)."""
     direction = OBSTACLE_TARGETS - OBSTACLE_R0
