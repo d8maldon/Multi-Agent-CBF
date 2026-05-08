@@ -91,7 +91,8 @@ def _delayed_view(state: State, comm_delay: float) -> tuple:
 
 def _compute_u_2_ref(r_ref: np.ndarray, v_a: np.ndarray, t_targets: np.ndarray,
                      edges: tuple,
-                     t_targets_dot: np.ndarray = None) -> np.ndarray:
+                     t_targets_dot: np.ndarray = None,
+                     obstacles: tuple = ()) -> np.ndarray:
     """Compute u_2^ref[i] for all agents via paper §2.3 reference-feedback law.
 
     1. v_des = formation-feedback complex velocity (capped at V_0).
@@ -102,7 +103,8 @@ def _compute_u_2_ref(r_ref: np.ndarray, v_a: np.ndarray, t_targets: np.ndarray,
     The reference Dubins agent (r_ref, v_ref) tracks v_des through u_2^ref;
     the heading-PD law is implemented in dyn.reference_turn_rate.
     """
-    v_des = dyn.reference_velocity(r_ref, t_targets, edges, t_targets_dot)
+    v_des = dyn.reference_velocity(r_ref, t_targets, edges, t_targets_dot,
+                                   obstacles=obstacles)
     return dyn.reference_turn_rate(v_a, v_des)
 
 
@@ -130,7 +132,8 @@ def _eval(state: State,
     # for moving-formation tracking (Pomet-Praly velocity feedforward).
     _eps = 1e-3
     t_dot = (t_targets_fn(state.t + _eps) - t_targets_fn(state.t - _eps)) / (2.0 * _eps)
-    u_2_ref = _compute_u_2_ref(state.r_ref, state.v_a, t_now, edges, t_dot)
+    u_2_ref = _compute_u_2_ref(state.r_ref, state.v_a, t_now, edges, t_dot,
+                                obstacles=obstacles)
     u_2_AC = state.theta_hat * u_2_ref                           # (N,) real
 
     # === 2. Communication-delayed broadcast view (axiom (A4) v17) ===
