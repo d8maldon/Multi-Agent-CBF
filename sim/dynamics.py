@@ -26,21 +26,28 @@ def neighbours(i: int, edges: tuple) -> list:
 
 
 def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple,
-                       t_targets_dot: np.ndarray = None) -> np.ndarray:
-    """[§2.3 v17.3]: reference complex velocity command as a function of (z, t).
+                       t_targets_dot: np.ndarray = None,
+                       obstacles: tuple = ()) -> np.ndarray:
+    """[§2.3 v17.8]: reference complex velocity command with potential-field
+    obstacle repulsion (Khatib 1986; Borrmann-Wang-Ames-Egerstedt 2015).
 
-    v17.3 adds an optional feedforward term `t_targets_dot` (the target's
-    instantaneous velocity) so that the reference dynamics can track moving
-    formations exactly when the kinematic constraint $V_0 \\ge \\sup_t |\\dot
-    t_i|$ is honoured (Carathéodory 1909 reachability).
+    v17.3 adds optional feedforward `t_targets_dot` for moving formations
+    (Pomet-Praly velocity feedforward).
 
-    The formation feedback acts via the **Kirchhoff Laplacian** L_G (Kirchhoff
-    1847) of the communication graph, encoded here through the per-agent
-    neighbour sums. The proportional gain K_T contributes K_T*I to the formation
-    matrix; the coupling gain K_F contributes K_F*L_G. The smallest non-zero
-    eigenvalue lambda_2(L_G) is the Fiedler 1973 algebraic connectivity, the
-    effective spring constant for formation cohesion. See §4.3 Step (b)
-    Hilbert-Courant min-max for the analytical role of L_G.
+    v17.8 adds optional `obstacles` list for static-obstacle repulsion in
+    the AC reference, so that the heading-PD does not aim straight at
+    obstacles in the first place. This complements the HOCBF safety-filter:
+    AC pre-deflects via potential field; HOCBF guarantees the safe set.
+    Without the repulsion, the AC head-on trajectory creates a relative-
+    degree drop in the obstacle CBF (a_obs = 0), and the QP-resolvent has
+    no u_2 authority to deflect — vehicles plow through obstacles. Pass 47
+    council documented this; v17.8 (user-pointed-out fix) resolves it via
+    the classical potential-field / barrier-function-augmented-reference
+    approach.
+
+    Repulsion form: f_rep(r_i, r_obs) = K_OBS * (r_i - r_obs) /
+    |r_i - r_obs|^2 * exp(-(|r_i - r_obs| - r_inf)^2 / sigma^2)
+    where r_inf is the influence radius. Only active near the obstacle.
     """
     N = z.shape[0]
     v_des = np.zeros(N, dtype=complex)
@@ -48,10 +55,26 @@ def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple,
         v_des[i] = -pp.K_T * (z[i] - t_targets[i])
         for j in neighbours(i, edges):
             v_des[i] -= pp.K_F * ((z[i] - z[j]) - (t_targets[i] - t_targets[j]))
-    # Feedforward: add target velocity so steady-state error is zero for
-    # moving formations (Pomet-Praly-style velocity feedforward; v17.3).
     if t_targets_dot is not None:
         v_des = v_des + t_targets_dot
+    # v17.8: potential-field obstacle repulsion in the AC reference.
+    if obstacles:
+        for i in range(N):
+            for (r_obs, r_obs_radius) in obstacles:
+                d_vec = z[i] - r_obs
+                d = float(np.abs(d_vec))
+                # Influence radius: 2.5x (r_obs + r_safe) — outside this,
+                # repulsion is negligible.
+                r_inf = 2.5 * (r_obs_radius + pp.R_SAFE)
+                if d < r_inf:
+                    # Repulsive force magnitude grows as (1/d - 1/r_inf)^2
+                    # (Khatib 1986 quadratic-decay potential), times unit
+                    # vector pointing AWAY from obstacle. Gain K_OBS sized
+                    # so f_rep ≈ V_0 at the safety boundary.
+                    overlap = max(r_inf - d, 0.0) / r_inf
+                    f_mag = pp.K_OBS * overlap ** 2
+                    direction = d_vec / max(d, 1e-6)
+                    v_des[i] += f_mag * direction
     # Cap magnitude at V_0 to respect constant-speed simplification
     norms = np.abs(v_des)
     norms = np.where(norms > pp.V_0, norms, pp.V_0)

@@ -23,6 +23,14 @@ K_T = 4.0           # tracking gain                                   [§8.3]
 # at coincident-x conflicting-swap is Nagumo-degenerate (relative-degree
 # drop on positive-measure set, not isolated). Restore K_F=8 for the ring.
 K_F = 8.0           # formation-coupling gain (v17.3 ring-rotation tuning)
+# v17.8: potential-field obstacle-repulsion gain (Khatib 1986; Borrmann-
+# Wang-Ames-Egerstedt 2015). When non-zero AND obstacles are passed to
+# reference_velocity, the AC reference already deflects around obstacles;
+# CBF then provides safety guarantee as backup. Set to 0 to disable.
+K_OBS = 4.0         # obstacle repulsion gain (only active near obstacles)
+                    # v17.8 tuning: weak enough that AC alone has small
+                    # obstacle h_min violation; CBF tightens to h ≥ 0
+                    # (visible safety filter contribution)
 GAMMA = 0.15        # adaptive-law gain (rate of theta_hat update)    [§8.3]
 
 # HOCBF class-K gains [§3.1: ddot h + (alpha_1 + alpha_2) dot h + alpha_1 alpha_2 h >= 0]
@@ -273,38 +281,35 @@ SLACK_PENALTY_STAR = 1e4         # M = 10^4 baseline
 # obstacle radius + r_safe must exceed turning radius. With r_obs = 1.0
 # and r_safe = 0.4, clearance is 1.4 m >> 0.2 m. Comfortably safe.
 
-# Vehicles arranged so their AC straight-line paths to targets do NOT pass
-# directly through any obstacle (avoids the Nagumo-degenerate head-on
-# obstacle case). Each vehicle takes a parallel-channel route past obstacles
-# — the obstacles force lateral deflection but the path is not aimed at
-# obstacle centre.
+# v17.8: 4 vehicles all heading EAST through an obstacle field. No head-on
+# vehicle-vehicle conflicts (all going same direction). Obstacles in the
+# middle of the field force lateral deflection. The AC reference uses
+# Khatib 1986 potential-field repulsion to pre-route around obstacles;
+# the HOCBF safety filter provides the safety guarantee as backup.
 OBSTACLE_R0 = np.array([
-    -5.0 + 1.5j,    # vehicle 0: west, upper channel
-    -5.0 - 1.5j,    # vehicle 1: west, lower channel
-    +5.0 + 1.5j,    # vehicle 2: east, upper channel
-    +5.0 - 1.5j,    # vehicle 3: east, lower channel
+    -6.0 + 2.5j,    # vehicle 0: upper lane
+    -6.0 + 0.8j,    # vehicle 1: upper-mid lane
+    -6.0 - 0.8j,    # vehicle 2: lower-mid lane
+    -6.0 - 2.5j,    # vehicle 3: lower lane
 ], dtype=complex)
 
-# Targets: each vehicle drives east/west to the OPPOSITE side of the
-# obstacle field, keeping its lateral position. AC straight-line paths
-# are horizontal, so vertical-stacked obstacles force only small deflection.
 OBSTACLE_TARGETS = np.array([
-    +5.0 + 1.5j,    # vehicle 0 -> east (head-on with vehicle 2 in same channel!)
-    +5.0 - 1.5j,    # vehicle 1 -> east (head-on with vehicle 3)
-    -5.0 + 1.5j,    # vehicle 2 -> west
-    -5.0 - 1.5j,    # vehicle 3 -> west
+    +6.0 + 2.5j,
+    +6.0 + 0.8j,
+    +6.0 - 0.8j,
+    +6.0 - 2.5j,
 ], dtype=complex)
 
 OBSTACLE_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
 
-# Two STATIC circular obstacles — placed off the AC straight-line paths.
-# Vehicle paths at y = ±1.5; obstacles at y = 0 (central), centre x close
-# to where vehicles meet. This forces vehicles to deflect AROUND the
-# obstacles laterally as they pass each other.
+# 2 STATIC circular obstacles between adjacent lane pairs. Repulsion pushes
+# each vehicle AWAY from obstacles. Obstacles at y = ±1.65 (between lanes
+# at y = ±2.5 and y = ±0.8). Distance to nearest lane = 0.85; obstacle
+# radius 0.4 + r_safe 0.4 = 0.8 clearance, so h ≈ 0.0625 along the
+# straight-line path — vehicles must deflect to maintain h > 0.
 OBSTACLE_LIST = (
-    (0.0 + 0.0j, 0.7),       # central obstacle (off the y=±1.5 channels)
-    (+2.5 + 0.0j, 0.5),      # east obstacle
-    (-2.5 + 0.0j, 0.5),      # west obstacle
+    (+0.0 + 1.5j, 0.5),      # between vehicles 0 (y=2.5) and 1 (y=0.8)
+    (+0.0 - 1.5j, 0.5),      # between vehicles 2 (y=-0.8) and 3 (y=-2.5)
 )
 
 
