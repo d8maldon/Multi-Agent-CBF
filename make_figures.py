@@ -1,24 +1,28 @@
-"""Generate v17 paper §8.4 figures 1-7 (council-vetted Passes 19-30).
+"""Generate v17.2 paper §8.4 figures 1-7 (council-vetted Passes 19-37).
 
-v17 differences from v16:
-- Plant state is complex (r, v_a) in C^2 per agent; agents follow curved
-  Dubins paths instead of straight lines.
-- Output to output/v17/ (v16 figures retained at output/v16/).
-- Figure 7 NEW: §8.1 N=2 head-on Filippov sliding-mode demonstration.
-- Figure 1 uses oriented-triangle agent rendering (psi = arg(v_a)).
+v17.2 differences from v17.1:
+- Figures 1, 2, 3, 4, 5, 6 now driven from the §8.2 N=8 antipodal-ring rosette
+  demo (Klein 1872 Erlangen / Sepulchre-Paley-Leonard 2007 / Mesbahi-Egerstedt
+  2010), replacing the v17.1 N=4 cross-swap as the empirical showcase. The
+  rosette has D_8 ⋉ U(1)^8 symmetry, K_8 communication graph (28 HOCBF pairs),
+  and Kirchhoff Laplacian L(K_8) with algebraic connectivity λ_2 = 8.
+- For the N=8 demo only, H_OUTER 5 → 10 ms and SLACK_PENALTY 1e4 → 5e4
+  (Pass 36/37 controls consensus). Worked example §VII (N=2 head-on) keeps
+  baseline params, so figure 7 is unchanged.
+- Figure 7 still §8.1 N=2 head-on Filippov demo at H_OUTER = 5 ms.
 
 Runs:
-  - 3 cross-swap scenarios for figs 1, 2 (AC alone, AC+CBF, AC+CBF+PE)
-  - 4 A_e values for fig 5 (0, 0.05, 0.10, 0.20 * psi_dot_max)
-  - 5 comm-delay values for fig 6 (0, 5, 20, 50, 100 ms)
-  - 2 N=2 head-on scenarios for fig 7 (no PE / with PE)
-Total: 9 cross-swap sims + 2 head-on sims; ~1-2 min wall time on a desktop CPU.
+  - 3 ring8 scenarios for figs 1, 2 (AC alone, AC+CBF, AC+CBF+PE)
+  - 4 A_e values for fig 5
+  - 5 comm-delay values for fig 6
+  - 2 N=2 head-on scenarios for fig 7 (baseline H_OUTER)
 
 Outputs to: output/v17/figure_{1..7}.pdf
 """
 
 from __future__ import annotations
 
+import contextlib
 import sys
 import time
 from pathlib import Path
@@ -35,10 +39,56 @@ OUT = HERE / "output" / "v17"
 OUT.mkdir(parents=True, exist_ok=True)
 
 
+@contextlib.contextmanager
+def numerical_overrides(H_OUTER: float, SLACK_PENALTY: float):
+    """Temporarily override pp.H_OUTER and pp.SLACK_PENALTY for the N=8 demo.
+
+    Pass 37 controls-expert-reviewer consensus: H_OUTER 5 → 10 ms preserves the
+    Tikhonov singular-perturbation cascade (epsilon = K_T·Λ_min·H_OUTER = 0.024
+    ≪ 1, separation factor 42×). SLACK_PENALTY 1e4 → 5e4 follows the
+    sqrt(N(N-1)/2) ≈ 5.3 exact-penalty threshold (Bertsekas 1999 §5.4).
+    """
+    saved_H, saved_M = pp.H_OUTER, pp.SLACK_PENALTY
+    pp.H_OUTER = H_OUTER
+    pp.SLACK_PENALTY = SLACK_PENALTY
+    try:
+        yield
+    finally:
+        pp.H_OUTER = saved_H
+        pp.SLACK_PENALTY = saved_M
+
+
+def ring8_run(A_e: float, T_final: float, log_every: int,
+              use_safety_filter: bool = True,
+              comm_delay: float = 0.0,
+              slack_penalty: float | None = None) -> dict:
+    """One §8.2 v17.2 N=8 antipodal-ring rosette run (council Pass 37 consensus).
+
+    H_OUTER = 10 ms, SLACK_PENALTY = 5e4 by default; pass slack_penalty=1e5 for
+    the M=10× fallback if empirical h_min < 0 (Pass 37 Ames gate).
+    """
+    r0 = pp.RING8_R0.copy()
+    v_a0 = pp.ring8_v0()
+    M = slack_penalty if slack_penalty is not None else pp.SLACK_PENALTY_RING8
+    with numerical_overrides(pp.H_OUTER_RING8, M):
+        return integrator.run(
+            r0=r0, v_a0=v_a0,
+            r_ref0=r0.copy(), v_ref0=v_a0.copy(),
+            edges=pp.RING8_EDGES,
+            t_targets_fn=pp.ring8_targets_oscillating,
+            A_e=A_e,
+            T_final=T_final,
+            log_every=log_every,
+            use_safety_filter=use_safety_filter,
+            comm_delay=comm_delay,
+        )
+
+
 def crossswap_run(A_e: float, T_final: float, log_every: int,
                    use_safety_filter: bool = True,
                    comm_delay: float = 0.0) -> dict:
-    """One §8.2 cross-swap run with given excitation amplitude + delay (v17)."""
+    """One §8.2 N=4 cross-swap run (kept for back-compat / unit tests; not used
+    for v17.2 figures 1-6, which use ring8_run instead)."""
     r0 = pp.CROSSSWAP_R0.copy()
     v_a0 = pp.crossswap_v0()
     return integrator.run(
@@ -88,30 +138,37 @@ def _summary(name: str, out: dict) -> str:
 
 def main(quick: bool = False):
     if quick:
-        T_cross, log_cross = 4.0, 8
+        T_cross, log_cross = 4.0, 4   # log finer at H_OUTER=10ms (was 8 at 5ms)
         T_headon, log_headon = 0.6, 4
     else:
-        T_cross, log_cross = 16.0, 8
+        T_cross, log_cross = 16.0, 4
         T_headon, log_headon = 1.0, 4
-    print(f"v17 cross-swap: T_final = {T_cross} s, log_every = {log_cross}")
-    print(f"v17 head-on:    T_final = {T_headon} s, log_every = {log_headon}")
+    print(f"v17.2 ring8 rosette: T_final = {T_cross} s, log_every = {log_cross}")
+    print(f"v17.2 head-on:       T_final = {T_headon} s, log_every = {log_headon}")
     print()
 
     t0 = time.time()
 
-    # --- 3 cross-swap scenarios for figures 1 + 2 ---
-    print("[1/3] AC alone  (no safety filter, no PE)")
-    out_AC = crossswap_run(0.0, T_cross, log_cross, use_safety_filter=False)
+    # --- 3 ring8 rosette scenarios for figures 1 + 2 ---
+    print("[1/3] AC alone  (no safety filter, no PE) — N=8 antipodal ring")
+    out_AC = ring8_run(0.0, T_cross, log_cross, use_safety_filter=False)
     print(_summary("AC", out_AC))
 
-    print("[2/3] AC + CBF  (safety filter on, no PE)")
-    out_CBF = crossswap_run(0.0, T_cross, log_cross, use_safety_filter=True)
+    print("[2/3] AC + CBF  (safety filter on, no PE) — N=8 antipodal ring")
+    out_CBF = ring8_run(0.0, T_cross, log_cross, use_safety_filter=True)
     print(_summary("AC+CBF", out_CBF))
 
     print("[3/3] AC + CBF + PE  (paper headline scenario, A_e = 0.10*psi_dot_max)")
-    out_PE = crossswap_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
-                            use_safety_filter=True)
+    out_PE = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
+                       use_safety_filter=True)
     print(_summary("AC+CBF+PE", out_PE))
+
+    # Pass 37 Ames empirical h_min gate: if h_min < 0, re-run at M=1e5
+    if out_PE['h'].min() < 0.0:
+        print(f"  ⚠ h_min = {out_PE['h'].min():.3f} < 0 — re-running at M=1e5 fallback")
+        out_PE = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
+                           use_safety_filter=True, slack_penalty=pp.SLACK_PENALTY_RING8_FALLBACK)
+        print(_summary("AC+CBF+PE [M=1e5]", out_PE))
 
     # --- A_e Pareto sweep for figure 5 ---
     print("[A_e sweep] for figure 5:")
@@ -126,7 +183,7 @@ def main(quick: bool = False):
             print(f"     A_e/psi_dot_max = {A_e_frac:.2f}: re-using AC+CBF+PE run")
         else:
             print(f"     A_e/psi_dot_max = {A_e_frac:.2f}: running...")
-            out = crossswap_run(A_e, T_cross, log_cross, use_safety_filter=True)
+            out = ring8_run(A_e, T_cross, log_cross, use_safety_filter=True)
             print(_summary(f"A_e={A_e_frac:.2f}", out))
         sweep.append((A_e, out))
 
@@ -139,8 +196,8 @@ def main(quick: bool = False):
             print(f"     tau = {tau_ms} ms: re-using AC+CBF+PE run")
         else:
             print(f"     tau = {tau_ms} ms: running...")
-            out = crossswap_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
-                                 use_safety_filter=True, comm_delay=tau_ms * 1e-3)
+            out = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
+                            use_safety_filter=True, comm_delay=tau_ms * 1e-3)
             print(_summary(f"tau={tau_ms}ms", out))
         delay_runs.append((tau_ms, out))
 

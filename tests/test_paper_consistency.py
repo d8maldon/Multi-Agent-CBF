@@ -45,7 +45,11 @@ def test_v17_eta_feasibility_at_8_3_parameters():
         threshold ~ 0.3^2 * 1.88^2 ~ 0.32
     With K_T = 4 and lambda_min = 0.6: K_T * lambda_min = 2.4 > 0.32 (margin 7.5x).
     """
-    Lambda_min = float(pp.LAMBDA_TRUE.min())
+    # v17.1: §VII proof-bearing example uses the first 4 LAMBDA entries.
+    # v17.2: extending LAMBDA_TRUE to 8 entries for the N=8 rosette demo
+    # introduced a wider 0.55-min, but the §VII §4.3 gain claim is for the
+    # proof-bearing N=4 example, so we test the [:4] slice here.
+    Lambda_min = float(pp.LAMBDA_TRUE[:4].min())
     eta_a_practical = 1.6        # paper §8.3 / §3.1.1
     L_QP_star = (1.0 + pp.KAPPA_LAMBDA) / eta_a_practical
     mu_bar = 0.30
