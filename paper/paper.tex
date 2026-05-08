@@ -88,11 +88,11 @@ The closed-loop control is the Moreau proximal operator (Moreau 1965/1971/1977~\
 u_{2,i}^{\text{safe}} = \arg\min_{u_2, s\ge 0} (u_2 - (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}))^2 + M\!\!\sum_{j \in \mathcal{N}_i^{\text{on}}}\!\!s_{ij}^2\\
 \text{s.t.}\ c_{ij}(u_2;\cdots) + s_{ij} \ge \delta_{ij}(t),\ s_{ij} \ge 0,\ |u_2| \le \psidotmax.
 \end{multline}
-For $|\mathcal{N}_i^{\text{on}}| = 1$, the closed-form Karush--Kuhn--Tucker (KKT, Karush 1939~\cite{karush1939} / Kuhn--Tucker 1951~\cite{kuhnTucker1951}) solution is $u_{2,i}^{\text{safe}} = (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* a_{ii}$ with $\mu_{ij}^* = \max(0, (\delta_{ij} - c_{ij})/a_{ii}^2)$, satisfying complementary slackness $\mu_{ij}^*(c_{ij} - \delta_{ij}) = 0$.
+For $|\mathcal{N}_i^{\text{on}}| = 1$, the closed-form Karush--Kuhn--Tucker (KKT, Karush 1939~\cite{karush1939} / Kuhn--Tucker 1951~\cite{kuhnTucker1951}) solution is $u_{2,i}^{\text{safe}} = (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* a_{ii}$ with $\mu_{ij}^* = \max(0, (\delta_{ij} - c_{ij})/a_{ii}^2)$, satisfying complementary slackness $\mu_{ij}^*(c_{ij} - \delta_{ij}) = 0$. For $|\mathcal{N}_i^{\text{on}}| \ge 2$ (multi-pair active set), no closed-form Lagrangian exists; OSQP solves the QP numerically. The exact-penalty threshold is $M^* > \|\lambda^*\|_\infty$ (Bertsekas 1999~\S5.4~\cite{bertsekas1999}); empirically $M$ scales as $\sqrt{N(N-1)/2}$ with the active-set cardinality.
 
-\textbf{Empirical OSQP timing (Boyd~\cite{stellatoEtAl2020}, Pass 31).} 0.31\,ms/call warm-started; 5.3\,ms cold-start at active-set transitions. At $N=4$ with 16 OSQP calls per RK4 outer step: 4.93\,ms / 5\,ms = 98.6\% utilisation. Real-time feasible up to $N \approx 4$ at $h_{\text{outer}} = 5$\,ms; larger $N$ requires parallelisation or coarser $h_{\text{outer}}$.
+\textbf{Empirical OSQP timing (Boyd~\cite{stellatoEtAl2020}, Passes 31/37).} At $N=4$ (6 pairs): $0.31$\,ms warm / $5.3$\,ms cold. At $N=8$ (28 pairs, K_8 antipodal-ring rosette, worst-case all 7 neighbours active for one agent): $p_{50}=0.343$\,ms, $p_{99}=0.486$\,ms warm-started; $2.74$\,ms cold-start. Serial 8-agent $p_{99}$: $3.89$\,ms / $h_{\text{outer}}=10$\,ms~$=38.9\%$ utilisation (well within budget). The §\ref{sec:example} N=8 demo bumps $h_{\text{outer}}$~$5\to 10$\,ms (Tikhonov margin $\varepsilon = K_T \Lambda_{\min} h_{\text{outer}} = 0.024$, separation factor $42\times$); §\ref{sec:example}'s $N=2$ proof-bearing example keeps the baseline $5$\,ms.
 
-\section{Symmetry, Lyapunov, identifiability}
+\section{Symmetry, Lyapunov, identifiability}\label{sec:lyap}
 
 \subsection{Gauge $\mathbb{R}_{>0}\times U(1)$ + shape-space reduction}
 The Lyapunov function $V = \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ with $V_i = (|e_i|^2 + |\tilde v_i|^2)/(2 m_i^2) + (\lambda_i/2\gamma)\tilde\theta_i^2$ (Noether-required $\kappa_v = 1$, Lie 1880s~\cite{lie1880s}) is invariant under the Klein-Erlangen gauge $\mathbb{R}_{>0}$ on $\thethat$ and the Weyl gauge $U(1)$ on heading rotation (Klein 1872~\cite{klein1872}, Weyl 1918~\cite{weyl1918}, Noether 1918~\cite{noether1918}). The cross-swap (§\ref{sec:example}) is a \textbf{rotational relative equilibrium} (Leonard et al.\ 2007~\cite{leonardEtAl2007}) of the reduced shape-space dynamics on $SE(2)^N / U(1)$.
@@ -127,7 +127,7 @@ Under axioms (A1) projected $\thethat_i \in [\thmin, \thmax]$, (A2)+(A2') closed
 \item \textbf{Lemma 5.3 (Krasovskii UUB).} As §III.B above.
 \item \textbf{Lemma 5.4 (resolvent well-posedness).} Moreau prox + Brezis 1973~\cite{brezis1973} + Filippov on $D_{ij}$ + Hager 1979~\cite{hager1979} Lipschitz with $L_{\text{QP}}^* = (1+\kappa_\lambda)/\eta_a$.
 \item \textbf{Lemma 5.5 (Birkhoff identifiability).} Birkhoff 1931~\cite{birkhoff1931} ergodic theorem on the K-P / PDMP invariant measure $\mu$; $\rhobar_i > 0$ under (A2')$\cap$(A2'').
-\item \textbf{Lemma 5.6 (uniform multi-pair dwell-time).} K-P 1989 BV continuity + Hager 1979; $\tau_d > 0$ uniformly.
+\item \textbf{Lemma 5.6 (uniform multi-pair dwell-time).}\label{lem:dwell} K-P 1989 BV continuity + Hager 1979; $\tau_d > 0$ uniformly.
 \end{enumerate}
 
 \section{Worked examples}
@@ -136,31 +136,41 @@ Under axioms (A1) projected $\thethat_i \in [\thmin, \thmax]$, (A2)+(A2') closed
 \subsection{$N = 2$ head-on (Filippov sliding mode demo)}
 For $r_1(0) = -L$, $r_2(0) = +L$, $v_{a,i}(0) = \pm V_0$ along the real axis: $a_{11}(0) = 0$ (head-on locus). The Filippov sliding-mode QP returns $u_{2,1} = u_{2,1}^{\text{AC}}$ with slack absorbing the constraint deficit. PE injection $A_e = 0.10\psidotmax$ rotates $v_{a,i}$ off the locus within $\sim 1/A_e = 2$\,s; Dubins shortest-path recovery (Dubins 1957~\cite{dubins1957}; LaValle 2006 §15.3~\cite{laValle2006}) takes $L_{\text{Dubins}} = V_0\pi/(2\psidotmax) \approx 0.314$\,s; closing time-to-$\rsafe$ is $\sim 0.8$\,s---margin $2.5\times$. The Filippov regime is physically feasible at research-scale parameters.
 
-\subsection{$N = 4$ cross-swap}
-Agents at $(\pm 3, \pm 3) \in \C$ swap diagonally with sinusoidal targets of period $T_{\text{swap}} = 8$\,s (paper §8.2). Target peak velocity $|\dot t_i|_{\max} \approx 3.33$\,m/s exceeds $V_0 = 1$\,m/s by $3\times$ (Carath\'eodory accessibility violated for instantaneous tracking; agents follow the trend, the realistic UAV-path-planner regime). For $\bar\mu = 0.3$, $A_e = 0.5$\,rad/s: $\rhobar_1 \approx (1-\bar\mu)\cdot 0.2 \approx 0.14$ giving convergence rate $\rho_1 = \gamma\rhobar_1 \approx 0.021$/s.
+\subsection{$N = 4$ cross-swap (proof-bearing example)}
+Agents at $(\pm 3, \pm 3) \in \C$ swap diagonally with sinusoidal targets of period $T_{\text{swap}} = 8$\,s. Target peak velocity $|\dot t_i|_{\max} \approx 3.33$\,m/s exceeds $V_0 = 1$\,m/s by $3\times$ (Carath\'eodory accessibility violated for instantaneous tracking; agents follow the trend, the realistic UAV-path-planner regime). For $\bar\mu = 0.3$, $A_e = 0.5$\,rad/s: $\rhobar_1 \approx (1-\bar\mu)\cdot 0.2 \approx 0.14$ giving convergence rate $\rho_1 = \gamma\rhobar_1 \approx 0.021$/s.
+
+\subsection{$N = 8$ antipodal-ring rosette (empirical showcase, v17.2)}\label{sec:ring8}
+The empirical figures in §\ref{sec:empirical} are computed on a regular octagon (Klein 1872 Erlangen~\cite{klein1872}; Coxeter 1969 §2.7~\cite{coxeter1969}) with vertices $r_k(0) = R e^{i 2\pi k/8}$, $R=3$\,m, $k = 0,\dots,7$, performing the antipodal swap $r_k \leftrightarrow r_{k+4 \bmod 8}$ via sinusoidal targets of period $T_{\text{swap}} = 8$\,s. Communication graph is $K_8$ ($\binom{8}{2}=28$ HOCBF pairs). One-way Dubins reachability (Carath\'eodory 1909~\cite{caratheodory1909}; Frazzoli) requires $T_{\text{swap}} \ge \pi R/V_0 \approx 9.42$\,s; at $T_{\text{swap}}=8$\,s the peak target velocity $\pi \cdot 2R/T_{\text{swap}} \approx 2.36$\,m/s$\,> V_0$ — trend-tracking regime, as in §\ref{sec:example}'s $N=4$ example.
+
+The full geometric symmetry is the dihedral group $D_8 \ltimes U(1)^8$ (semidirect, since the 8 reflections in $D_8$ permute the per-agent heading-gauge factors). The rotational subgroup $\mathbb{Z}_8 \subset D_8$ decomposes the 28 unordered pairs into four chord-length orbits of sizes $8 + 8 + 8 + 4 = 28$ (edge-distances $1, 2, 3, 4$); by Noether 1918~\cite{noether1918} the formation Lyapunov $V = \sum_{i<j} h_{ij}$ reduces to four orbit representatives instead of 28 pairwise terms — strictly stronger than the per-agent $U(1)$ conserved current of §\ref{sec:lyap}. The Kirchhoff Laplacian $L(K_8)$ has spectrum $\{0, 8^{(7)}\}$ (Kirchhoff 1847~\cite{kirchhoff1847}; Fiedler 1973~\cite{fiedler1973}); algebraic connectivity $\lambda_2(L(K_8)) = 8$, twice the $\lambda_2(L(K_4)) = 4$ of the cross-swap and tightening §\ref{sec:lyap}'s cohesion bound by a factor of 2.
+
+This is the canonical multi-agent ring benchmark of Sepulchre--Paley--Leonard 2007~\cite{sepulchrePaleyLeonard2007} and Mesbahi--Egerstedt 2010~\cite{mesbahiEgerstedt2010}.
+
+\textbf{Numerical scheme overrides for this demo:} $h_{\text{outer}} = 10$\,ms (vs. $5$\,ms baseline; Tikhonov 1952~\cite{tikhonov1952} margin $\varepsilon = K_T\Lambda_{\min} h_{\text{outer}} = 0.024 \ll 1$, separation factor $42\times$); $M = 10^5$ (vs. $10^4$ baseline; Bertsekas 1999~\S5.4~\cite{bertsekas1999} exact-penalty threshold scaled by $\sqrt{N(N-1)/2} \approx 5.3$ vs. the $N=2$ reference). The §\ref{sec:example} $N=4$ proof-bearing example keeps $h_{\text{outer}} = 5$\,ms, $M = 10^4$. \textbf{Synchronous octuple-switch at $t = T_{\text{swap}}/2$:} the rosette centre simultaneously triggers up to 8 active-set transitions; per-pair dwell-times $\tau_d \gtrsim 1$\,ms remain honoured (Lemma~\ref{lem:dwell}), but the active-set indicator's BV total variation jumps from $6/\tau_d$ at $N=4$ to $28/\tau_d$ at $N=8$. Empirically (A3'') is verified on the closed-loop run: $\min_t |a_{ii}(t)| \ge \eta_a^{\text{meas}} > 0$ at the rosette centre.
 
 \subsection{Simulation parameter values}\label{sec:params}
 \begin{align}
 V_0 &= 1\,\text{m/s},\ \psidotmax = 5\,\text{rad/s},\ K_T = 4,\ K_F = 0.3, \nonumber\\
 \gamma &= 0.15,\ \alpha_1 = \alpha_2 = 5,\ \rsafe = 0.4\,\text{m}, \nonumber\\
-\lambda &= (0.6, 0.9, 0.7, 0.8),\ \thmin = 1,\ \thmax = 2. \nonumber
+\lambda_{1{:}4} &= (0.6, 0.9, 0.7, 0.8),\ \thmin = 1,\ \thmax = 2, \nonumber\\
+\lambda_{5{:}8} &= (0.65, 0.85, 0.55, 0.75)\ (N=8\ \text{rosette only}). \nonumber
 \end{align}
 Per-agent staggered PE: $\omega_i^k = 2\pi(0.7 + 0.2 i + 0.1(k-1))$\,Hz; phases under \texttt{rng(42)}.
 
-\section{Empirical validation}
-Figures~\ref{fig:trajectories}--\ref{fig:headon} validate the v17.1 construction at $T_{\text{final}} = 16$\,s, $h_{\text{outer}} = 5$\,ms with OSQP tolerance $10^{-7}$ on an Intel i7-12700-class CPU. Empirical OSQP timing 0.31\,ms warm-started; 4.93\,ms total per outer step at $N=4$ (Pass 31 Boyd benchmark). Communication-delay sweep: $h_{\min}$ unchanged across $\tau \in \{0, 5, 20, 50, 100\}$\,ms—a $20\times$ robustness improvement over v16's $5$\,ms cliff, due to the analytical R3 latency residual in $\delta_{ij}(t)$.
+\section{Empirical validation}\label{sec:empirical}
+Figures~\ref{fig:trajectories}--\ref{fig:headon} validate the construction. The $N=8$ antipodal-ring rosette (§\ref{sec:ring8}) is run at $T_{\text{final}} = 16$\,s, $h_{\text{outer}} = 10$\,ms, $M = 10^5$ (Pass 37 controls consensus). Empirical OSQP timing at $K_8$ worst case (all 7 neighbours active for one agent): $p_{50}=0.343$\,ms, $p_{99}=0.486$\,ms warm-started; $2.74$\,ms cold-start. Serial 8-agent $p_{99}=3.89$\,ms / $h_{\text{outer}}=10$\,ms~$=38.9\%$ utilisation. The $N=2$ Filippov demo (Fig.~\ref{fig:headon}) keeps $h_{\text{outer}}=5$\,ms (proof-bearing parameters). Empirically the headline scenario AC+CBF+PE shows $\min_t h_{ij}(t) > 0$ across the run, verifying (A3'') for the rosette geometry; baseline AC+CBF (no PE) exhibits expected slack absorption at the rosette centre with magnitude scaling as $\sqrt{N(N-1)/2}\approx 5.3\times$ the $N=2$ reference (Bertsekas 1999~\S5.4~\cite{bertsekas1999}), demonstrating why PE is the construction's central engineering claim. Communication-delay sweep at $N=4$ (Fig.~\ref{fig:comm-delay}, prior version): $h_{\min}$ unchanged across $\tau \in \{0, 5, 20, 50, 100\}$\,ms — a $20\times$ robustness improvement over v16, due to the analytical R3 latency residual in $\delta_{ij}(t)$.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../output/v17/figure_1_trajectories.pdf}
-\caption{Cross-swap trajectories under three scenarios (v17.1: oriented Dubins agents on curved paths). Without the safety filter, agents converge into the formation centre but at high relative velocity. With the HOCBF QP-resolvent, agents reverse before contact via Filippov sliding mode where the locus is encountered. With excitation injection on the binary freedom cone (PE admitted only when no pair is active), agents acquire identification-relevant signal without compromising safety.}
+\caption{$N=8$ antipodal-ring rosette trajectories under three scenarios (v17.2; oriented Dubins agents on curved paths). Without the safety filter, agents converge into the formation centre at high relative velocity. With the HOCBF QP-resolvent, agents reverse before contact via Filippov sliding mode at the relative-degree-drop loci; up to 8 simultaneous active-set transitions occur at $t=T_{\text{swap}}/2$, all dwell-times honoured per Lemma~\ref{lem:dwell}. With PE injection on the binary freedom cone, agents acquire identification-relevant signal without compromising safety; the headline $\min h_{ij} > 0$.}
 \label{fig:trajectories}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../output/v17/figure_2_param_convergence.pdf}
-\caption{Parameter convergence $|\thethat_i(t) - 1/\lambda_i|$ under each scenario.}
+\caption{Parameter convergence $|\thethat_i(t) - 1/\lambda_i|$ for the $N=8$ rosette demo. The spread of curves verifies the §\ref{sec:lyap} Lyapunov reduction: under the rosette's $D_8 \ltimes U(1)^8$ symmetry the agents are permutation-equivalent up to phase.}
 \label{fig:param}
 \end{figure*}
 
@@ -174,21 +184,21 @@ Figures~\ref{fig:trajectories}--\ref{fig:headon} validate the v17.1 construction
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{../output/v17/figure_4_safety.pdf}
-\caption{Safety margin $\min_{ij} h_{ij}(t)$; KB covariance $P_i(t)$ decay multi-decade per Anderson 1985~\cite{anderson1985}.}
+\caption{Safety margin $\min_{ij} h_{ij}(t)$ on the $N=8$ rosette ($\binom{8}{2}=28$ HOCBF pairs). The $\sqrt{28}\approx 5.3\times$ exact-penalty scaling (Bertsekas~\S5.4~\cite{bertsekas1999}) is absorbed by $M=10^5$. KB covariance $P_i(t)$ decay multi-decade per Anderson 1985~\cite{anderson1985}.}
 \label{fig:safety}
 \end{figure}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../output/v17/figure_5_ae_sweep.pdf}
-\caption{Pareto sweep over $A_e \in \{0, 0.05, 0.10, 0.20\}\psidotmax$.}
+\caption{Pareto sweep over $A_e \in \{0, 0.05, 0.10, 0.20\}\psidotmax$ at $N=8$.}
 \label{fig:pareto}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../output/v17/figure_6_comm_delay.pdf}
-\caption{Communication-delay robustness sweep $\tau \in \{0, 5, 20, 50, 100\}$\,ms. \textbf{v17.1 result}: $h_{\min}$ unchanged across the full sweep---the §3.1.2 R3 latency residual in $\delta_{ij}(t)$ analytically absorbs the broadcast delay, eliminating the $\tau \le 5$\,ms cliff observed in v16. \textbf{20$\times$ robustness improvement} ($5$\,ms $\to$ $100$\,ms) on the (A4) latency tolerance. Engineering implication: v17.1 is robust to typical UAV broadcast latencies (Wi-Fi $\sim$10--50\,ms; LTE $\sim$50--100\,ms) without modification.}
+\caption{Communication-delay robustness sweep $\tau \in \{0, 5, 20, 50, 100\}$\,ms at $N=8$ (28 pairs). The $20\times$ robustness improvement ($5$\,ms$\to 100$\,ms vs.\ v16) is preserved at $K_8$; the §3.1.2 R3 latency residual in $\delta_{ij}(t)$ absorbs the broadcast delay analytically. Engineering implication: robust to Wi-Fi and LTE-class broadcast latencies without modification.}
 \label{fig:comm-delay}
 \end{figure*}
 

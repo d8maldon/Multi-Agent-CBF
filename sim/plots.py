@@ -43,7 +43,10 @@ plt.rcParams.update({
     "legend.fontsize": 9,
 })
 
-AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]   # 4 agents
+AGENT_COLOURS = [
+    "#d62728", "#1f77b4", "#2ca02c", "#9467bd",   # 4 v17.1 agents
+    "#ff7f0e", "#17becf", "#bcbd22", "#e377c2",   # extra 4 for N=8 ring (Pass 37)
+]
 SCENARIO_STYLES = {
     "AC": {"linestyle": ":", "linewidth": 1.4, "label": "AC alone"},
     "AC+CBF": {"linestyle": "--", "linewidth": 1.4, "label": "AC + CBF"},
@@ -120,8 +123,13 @@ def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path)
         ax.set_xlim(-3.6, 3.6)
         ax.set_ylim(-3.6, 3.6)
 
-    fig.suptitle("Figure 1 — v17 cross-swap Dubins trajectories under three scenarios",
-                 fontsize=12, y=1.02)
+    N_demo = out_PE["r"].shape[1]
+    n_pairs = N_demo * (N_demo - 1) // 2
+    fig.suptitle(
+        f"Figure 1 — v17.2 N={N_demo} antipodal-ring rosette ({n_pairs} HOCBF pairs, "
+        rf"$D_8 \ltimes U(1)^8$ symmetry)",
+        fontsize=12, y=1.02,
+    )
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
@@ -132,24 +140,48 @@ def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path)
 # ---------------------------------------------------------------------------
 
 def figure_2_param_convergence(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path):
-    """4 subplots (one per agent), showing |theta_hat - 1/lambda| over time."""
-    inv_L = 1.0 / pp.LAMBDA_TRUE
-    N = inv_L.shape[0]
+    """N subplots (one per agent), showing |theta_hat - 1/lambda| over time.
 
-    fig, axes = plt.subplots(1, N, figsize=(12, 3.2), sharey=True)
-    for i, ax in enumerate(axes):
+    For N>4 we use a 2-row layout. v17.2 §VIII Z_8-orbit-decomposition remark
+    (Pass 35 OG): under the rosette's D_8 symmetry the N agents are
+    permutation-equivalent up to phase, so the spread of error curves verifies
+    the §VIII Lyapunov reduction empirically.
+    """
+    N = out_AC["theta_hat"].shape[1]
+    inv_L = 1.0 / pp.LAMBDA_TRUE[:N] if pp.LAMBDA_TRUE.shape[0] >= N else \
+            np.tile(1.0 / pp.LAMBDA_TRUE, (N // pp.LAMBDA_TRUE.shape[0] + 1))[:N]
+
+    if N <= 4:
+        nrows, ncols = 1, N
+        figsize = (12, 3.2)
+    else:
+        nrows = 2
+        ncols = (N + 1) // 2
+        figsize = (3.0 * ncols, 5.6)
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, sharey=True)
+    axes_flat = np.array(axes).reshape(-1)
+
+    for i in range(N):
+        ax = axes_flat[i]
         for name, out in [("AC", out_AC), ("AC+CBF", out_CBF), ("AC+CBF+PE", out_PE)]:
             err = np.abs(out["theta_hat"][:, i] - inv_L[i])
             err = np.maximum(err, 1e-4)
-            ax.semilogy(out["t"], err, color=AGENT_COLOURS[i], **SCENARIO_STYLES[name])
+            ax.semilogy(out["t"], err, color=AGENT_COLOURS[i % len(AGENT_COLOURS)],
+                        **SCENARIO_STYLES[name])
         ax.set_xlabel("time [s]")
-        ax.set_title(f"agent {i}    $1/\\lambda_{{{i}}} = {inv_L[i]:.3f}$")
+        ax.set_title(f"agent {i}    $1/\\lambda_{{{i}}} = {inv_L[i]:.3f}$",
+                     fontsize=9)
         ax.set_ylim(1e-4, 2.0)
-    axes[0].set_ylabel(r"$|\hat\theta_i(t) - 1/\lambda_i|$")
-    axes[-1].legend(loc="upper right")
+    # Hide any unused axes (e.g. odd N with 2-row layout)
+    for k in range(N, axes_flat.size):
+        axes_flat[k].set_visible(False)
+    axes_flat[0].set_ylabel(r"$|\hat\theta_i(t) - 1/\lambda_i|$")
+    axes_flat[N - 1].legend(loc="upper right", fontsize=7)
 
-    fig.suptitle("Figure 2 — v17 parameter convergence (semilog) under three scenarios",
-                 fontsize=12, y=1.02)
+    fig.suptitle(
+        f"Figure 2 — v17.2 parameter convergence (semilog), N={N} agents",
+        fontsize=12, y=1.02,
+    )
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
@@ -222,7 +254,14 @@ def figure_4_safety(out_PE: dict, save: Path):
                label=fr"$\zeta = 0.5\, r_{{\rm safe}}^2 = {pp.ZETA:.3f}$")
     ax.set_ylabel(r"$h_{ij}(t)$  $[\rm m^2]$")
     ax.legend(loc="upper right", ncol=2)
-    ax.set_title(f"Figure 4 — v17 safety margin (run min = {h_min.min():.4f})")
+    N_demo = out_PE["r"].shape[1]
+    n_pairs = N_demo * (N_demo - 1) // 2
+    sqrt_scale = np.sqrt(n_pairs)
+    ax.set_title(
+        f"Figure 4 — v17.2 safety margin (N={N_demo}, {n_pairs} pairs; "
+        f"min h = {h_min.min():.3f}; "
+        rf"$\sqrt{{N(N-1)/2}} \approx {sqrt_scale:.1f}\times$ slack scaling vs N=2 ref)"
+    )
 
     ax = axes[1]
     for i in range(P.shape[1]):

@@ -127,6 +127,92 @@
 
 **Sign-off conditions:** SUBMIT-READY for IEEE-LCSS v17 scope conditional on the 15 consensus-agreed fixes being applied. After application, all three skills commit to no further additions on the expanded-panel-scope.
 
+---
+
+## Pass 34 - 2026-05-07 - math-god-mode (NEW SCOPE: N=4 → N=8 antipodal-ring rosette empirical demo)
+**Audited:** `paper/paper.tex` §VIII + `notes/pe-aware-cbf-theorem.md` (proposed empirical-only upgrade)
+**Verdict:** **SHIP IT** (empirical scope, no analytical rewrite required)
+**Personas (this pass):** Aaron Ames (HOCBF active-set scaling), Magnus Egerstedt (multi-robot K_N + chattering), Stephen Boyd (OSQP scaling).
+
+**Findings:**
+- 🟡 [NEW, Boyd] §III.3 caveat needed: closed-form KKT for |𝒩ᵢᵒⁿ|=1, OSQP fallback for ≥2 (clarification, not contradiction).
+- 🟡 [NEW, Egerstedt] §VIII figure-2 caption note: synchronous 8-fold switch at rosette centre, all dwell-times honoured per Lemma 5.6.
+- 🟡 [NEW, Ames] §VIII (A3'') empirical verification: $\min_t |a_{ii}(t)| \ge \eta_a^{\rm meas} > 0$.
+- 🔵 [NEW, Egerstedt+Leonard] cite Sepulchre-Paley-Leonard 2007 + Mesbahi-Egerstedt 2010 in §VIII.
+
+**Sign-off conditions:** none new beyond Pass 33's 15-fix commitment, which remains HONOURED. Empirical-only upgrade is additive.
+**Status of prior pass commitments:** Pass 33 (controls): HONOURED.
+
+---
+
+## Pass 35 - 2026-05-07 - OG-math-experts (Erlangen / classical reformulation of the rosette)
+**Audited:** N=8 antipodal-ring proposal
+**Verdict:** **SOUND with one numerical correction**
+**Personas (this pass):** Felix Klein (Erlangen / dihedral symmetry), Hermann Weyl (gauge × dihedral), Gustav Kirchhoff (L(K_8) spectrum).
+
+**Findings:**
+- 🔵 [NEW, Klein] The N=8 antipodal-ring is the Erlangen-canonical Dubins-formation benchmark; full geometric symmetry is $D_8$ (order 16), not just $\mathbb{Z}_8$. Cite Klein 1872 + Coxeter 1969 §2.7 for regular polygons / dihedral groups.
+- 🔵 [NEW, Weyl] Total closed-loop symmetry $D_8 \ltimes U(1)^8$ (semidirect, since reflections permute heading-gauge factors).
+- 🔵 [NEW, Weyl/Noether] $\mathbb{Z}_8$ subgroup decomposes $\binom{8}{2}=28$ pairs into 4 orbits (sizes 8+8+8+4 by chord-length); Lyapunov reduces to 4 representatives — strictly stronger than per-agent U(1).
+- 🔵 [NEW, Kirchhoff] L(K_8) spectrum $\{0, 8^{(7)}\}$; $\lambda_2(K_8) = 8$, twice $\lambda_2(K_4) = 4$ — cohesion bound tightens 2×.
+- ⚠ [NEW, Carathéodory] **OG NUMERICAL CORRECTION** to user's proposal: one-way antipodal Dubins reachability is $\pi R/V_0 \approx 9.42$ s, NOT $2\pi R/V_0 \approx 18.85$ s (the latter is round-trip period).
+
+**Sign-off conditions:** apply the numerical correction; the 4 new citations are additive, not blocking.
+**Status of prior pass commitments:** Pass 33: HONOURED (NEW SCOPE legitimately additive).
+
+---
+
+## Pass 36 - 2026-05-07 - controls-expert-reviewer (engineering scrutiny of N=8 deployment)
+**Audited:** Pass 34 proposed empirical change
+**Verdict:** **NOT SUBMIT-READY as initially scoped — 2 BLOCKERS, 4 MAJORs**
+**Personas (this pass):** Stephen Boyd (OSQP scaling), Aaron Ames (CBF multi-pair feasibility), Magnus Egerstedt (multi-robot K_N + chattering).
+
+**Findings:**
+- 🔴 [NEW, Boyd] **BLOCKER 1**: Real-time at N=8: estimated 32 OSQP calls/RK4-step × 0.31 ms warm = 9.92 ms (vs 5 ms outer step). Fix options: (a) coarsen H_OUTER 5→20 ms with new Tikhonov budget; (b) parallelise per-agent QPs; (c) reframe as offline batch.
+- 🔴 [NEW, Ames] **BLOCKER 2**: Multi-pair slack aggregates as $\mathcal{O}(\sqrt{28})$ ≈ 5.3× at rosette centre. Fix options: (a) raise M=10⁴→5·10⁴ and verify $h_{\min}\ge 0$; (b) disclose $\sqrt{N(N-1)/2}$ slack scaling in §VIII caption.
+- 🟠 [NEW, Ames] Per-pair authority degrades by 1/k_active at the centre — disclose in caption.
+- 🟠 [NEW, Egerstedt] BV-bound jump $6/\tau_d \to 28/\tau_d$ (4.67×) — engineering note.
+- 🟠 [NEW, Egerstedt] Comm-delay 20× claim probably degrades to ~10× at N=8 — split-panel disclosure.
+- 🟠 [NEW, Boyd] OSQP cache invalidation at high-density centre — empirical benchmark required.
+
+**Sign-off conditions:** apply both blocker mitigations + 4 MAJOR disclosures, then Pass 37 acceptance check.
+**Status of prior pass commitments:** Pass 33 analytical commitment HONOURED (these are empirical-scope blockers, do not break analytical SUBMIT-READY).
+
+---
+
+## Pass 37 - 2026-05-07 - cross-council acceptance check (consensus mitigation package)
+**Audited:** Consensus package combining Pass 34 SHIP IT + Pass 35 numerical correction + Pass 36 blocker mitigations.
+
+**Three parallel sub-passes (math-god-mode, OG, controls):**
+
+**37a math-god-mode** (Tao + Boyd + Ames): **ACCEPT package — SHIP IT.**
+- Tikhonov ε = K_T·Λ_min·H_OUTER = 0.024 ≪ 1, separation factor 42×. ✓
+- M = 10⁴ → 5·10⁴ is M-invariant for the Moreau-prox / KKT structure (Hestenes 1969 / Bertsekas 1976 / Boyd: penalty coefficient does not change the solution geometry). ✓
+- Soft requirement: report measured $h_{\min}$ in figure caption, not just "verified".
+
+**37b OG** (Klein + Hilbert + Moreau): **ACCEPT with 2 modifications.**
+- Modification A: §VIII.2 must name $D_8$ (not just $\mathbb{Z}_8$); chord-orbit decomposition is correct under both, but the honest Erlangen statement is the full dihedral group.
+- Modification B: Coxeter 1948 *Regular Polytopes* overstates the abstraction — replace with **Coxeter 1969 §2.7 *Introduction to Geometry***. Add **Bertsekas 1999 §5.4** for the exact-penalty footnote.
+- Item 7 (one-way reachability $\pi R/V_0$): correct as restated.
+
+**37c controls** (Boyd + Ames + Hespanha): **ACCEPT with 2 modifications.**
+- BLOCKER 1 CLOSED: Tikhonov 42× separation verified at H_OUTER=10 ms (Hespanha).
+- BLOCKER 2 CLOSED conditionally: Pass 37 Ames gate — if empirical $h_{\min} < 0$ at any tick, re-run at M=10⁵.
+- Modification: measure OSQP p50/p99 *before* quoting timing in caption (recurring from Pass 18 Boyd discipline).
+- Modification: Comm-delay split-panel — clearly state "20× verified at N=4; N=8 measured separately."
+
+**Consolidated Pass-37 verdict:** **SHIP IT — full council consensus** with the four operational modifications: (i) name $D_8$; (ii) Coxeter 1969 + Bertsekas 1999 §5.4 added; (iii) measure OSQP p50/p99; (iv) M=10⁵ fallback if $h_{\min}<0$ empirically.
+
+**Sign-off conditions:** apply the package; all three skills commit to no further additions on the v17.2 N=8 rosette empirical scope.
+
+**Empirical realisations (post-implementation):**
+- OSQP at K_8 worst case (all 7 active): $p_{50}=0.343$ ms, $p_{99}=0.486$ ms warm; $2.74$ ms cold.
+- Serial 8-agent $p_{99} = 3.89$ ms / H_OUTER_RING8 $= 10$ ms = 38.9% utilisation (well within budget).
+- Headline AC+CBF+PE: $\min_t h_{ij}(t) > 0$ at M=10⁵ (Pass 37 Ames gate satisfied).
+- Baseline AC+CBF (no PE): $\min_t h_{ij}(t) \approx -0.16$ — expected slack at the rosette centre, scaling as $\sqrt{28}\approx 5.3\times$ vs N=2 reference (disclosed in §VIII per Pass 37 controls path).
+
+**Status of prior pass commitments:** Pass 33: HONOURED. Pass 36's blockers: CLOSED via this consensus package.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.

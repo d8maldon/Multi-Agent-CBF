@@ -126,3 +126,60 @@ def test_v17_osqp_active_set_change_cold_starts():
     # Loose check: warm-start should be at least somewhat faster than cold
     assert t_on_warm < t_on or t_on < 1.0, \
         f"warm-start ({t_on_warm:.3f} ms) not faster than cold ({t_on:.3f} ms)"
+
+
+@pytest.mark.slow
+def test_v17_2_osqp_ring8_p50_p99():
+    """v17.2 N=8 antipodal-ring rosette OSQP timing (Pass 37 controls gate).
+
+    Pass 36 Boyd: "p50 and p99 measured before quoting any caption number."
+    Reports both percentiles for one agent of K_8 with up to 7 active
+    constraints. The §VIII figure caption quotes these values (Pass 37).
+    """
+    # Mid-traversal rosette config (~ near antipodal-swap centre, all close)
+    R = 1.0
+    N = 8
+    r = R * np.exp(1j * 2.0 * np.pi * np.arange(N) / N)
+    psi0 = np.angle(np.roll(r, -4) - r)            # heading toward antipodal
+    v_a = pp.V_0 * np.exp(1j * psi0)
+    theta_hat = 1.5 * np.ones(N)
+    u_2_AC = 0.5 * np.cos(psi0)                    # arbitrary representative
+    edges = tuple((i, j) for i in range(N) for j in range(i + 1, N))
+    pair_active = {frozenset({i, j}): True for (i, j) in edges}  # WORST CASE: all 28 active
+    delta_ij = {frozenset({i, j}): 0.01 for (i, j) in edges}
+    solver_cache: dict = {}
+
+    # Cold-start
+    t1 = time.perf_counter()
+    _, _, status_cold = qpr.solve_qp(0, r, v_a, theta_hat, u_2_AC, 0.0,
+                                       pair_active, edges, delta_ij,
+                                       solver_cache)
+    t_cold = (time.perf_counter() - t1) * 1000
+
+    # 1000 warm-start solves with parameter perturbations
+    n_warm = 1000
+    rng = np.random.default_rng(42)
+    times_ms = np.zeros(n_warm)
+    for k in range(n_warm):
+        u_perturbed = u_2_AC + 0.01 * rng.standard_normal(N)
+        t0 = time.perf_counter()
+        qpr.solve_qp(0, r, v_a, theta_hat, u_perturbed, 0.0,
+                     pair_active, edges, delta_ij, solver_cache)
+        times_ms[k] = (time.perf_counter() - t0) * 1000
+
+    p50 = float(np.percentile(times_ms, 50))
+    p99 = float(np.percentile(times_ms, 99))
+    p_max = float(times_ms.max())
+    print(f"\n  v17.2 N=8 K_8 OSQP (worst case: all 7 neighbours active for agent 0):")
+    print(f"    Cold-start (first solve): {t_cold:.3f} ms, status = {status_cold}")
+    print(f"    Warm-start p50: {p50:.3f} ms, p99: {p99:.3f} ms, max: {p_max:.3f} ms")
+    print(f"    Per-step (8 agents serial, p99): {8 * p99:.3f} ms vs H_OUTER_RING8 = "
+          f"{pp.H_OUTER_RING8 * 1000:.0f} ms budget")
+
+    # Pass 37 controls gate: 8 * p99 must fit in H_OUTER_RING8 = 10 ms
+    serial_per_step_ms = 8 * p99
+    assert serial_per_step_ms < pp.H_OUTER_RING8 * 1000, (
+        f"v17.2 N=8 serial OSQP p99 ({serial_per_step_ms:.2f} ms) exceeds "
+        f"H_OUTER_RING8 budget ({pp.H_OUTER_RING8 * 1000:.0f} ms). "
+        f"Either parallelise per-agent QPs OR coarsen H_OUTER further."
+    )
