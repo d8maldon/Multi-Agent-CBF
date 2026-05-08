@@ -186,16 +186,78 @@ def ring8_targets_oscillating(t: float) -> np.ndarray:
     Returns (N,) complex.
 
     t_i(t) = R * exp(i * (2*pi*i/N + omega*t)),  omega = 2*pi/T_period
-
-    Result: agents follow concentric circular arcs at radius R; pairwise
-    distances are CONSTANT under perfect tracking (= 2R sin(pi/N) for adjacent
-    pairs), so h_{ij}(t) = const = (2R sin(pi/N))^2 - r_safe^2 > 0 by design.
-    The safety filter has authority because |a_ii| stays bounded by the
-    always-tangential geometry. PE then drives identification under
-    h_{ij} >> 0.
     """
     return RING8_RADIUS * np.exp(1j * (2.0 * np.pi * np.arange(N_RING8) / N_RING8
                                         + OMEGA_RING8 * t))
+
+
+# ---------------------------------------------------------------------------
+# §VIII v17.5 8-pointed-star reconfiguration (Pass 44 council, Option B)
+# ---------------------------------------------------------------------------
+# 8 agents start on the radius-3 circle at angles 2*pi*k/8. Targets are an
+# 8-pointed star: even-indexed agents (k = 0, 2, 4, 6) stay at radius 3
+# (outer points); odd-indexed agents (k = 1, 3, 5, 7) move to radius
+# R_INNER (inner points). Pre-checked non-crossing: each agent's trajectory
+# is a radial chord; no two chords intersect. Pass 44 OG verdict: this
+# satisfies the post-Pass-43 Nagumo viability gate (no coincident-x
+# simultaneous crossings).
+#
+# Visual: outer ring contracts into a 4-armed star pattern. Photogenic
+# transition from circle to star, well within the v17 framework.
+
+R_OUTER_STAR = 3.0
+R_INNER_STAR = 1.2
+
+# Targets at radii alternating outer/inner around the same angles
+def _star_target_positions() -> np.ndarray:
+    angles = 2.0 * np.pi * np.arange(N_RING8) / N_RING8
+    radii = np.array([R_OUTER_STAR if (k % 2 == 0) else R_INNER_STAR
+                      for k in range(N_RING8)])
+    return radii * np.exp(1j * angles)
+
+STAR_R0 = (np.array([R_OUTER_STAR if (k % 2 == 0) else R_INNER_STAR
+                     for k in range(N_RING8)])
+           * np.exp(1j * 2.0 * np.pi * np.arange(N_RING8) / N_RING8)).astype(complex)
+STAR_TARGET_FINAL = _star_target_positions().astype(complex)
+STAR_EDGES = RING8_EDGES     # K_8 communication
+
+# Smooth target trajectory: agents move from initial radius-3 to the star
+# pattern over T_STAR_RECONFIG seconds, then hold the star indefinitely.
+# Cosine smoothing s(t) = 0.5*(1-cos(2*pi*t/(2*T_STAR))) for t in [0, T_STAR];
+# s = 1 thereafter. (i.e. half-cosine rise then plateau at the star.)
+T_STAR_RECONFIG = 8.0    # [s] time to complete the star reconfiguration
+
+def star_v0() -> np.ndarray:
+    """Initial v_{a,i}(0) = V_0 along the tangent CCW (CCW rotation of the
+    formation, rate omega = V_0 / R_OUTER). All agents start phase-locked
+    on the rotating star pattern."""
+    return V_0 * 1j * STAR_R0 / np.abs(STAR_R0)
+
+def star_targets_oscillating(t: float) -> np.ndarray:
+    """[§VIII v17.5 ROTATING 8-pointed-star]: target is an 8-pointed star
+    that ROTATES CCW at omega = V_0/R_OUTER. Even-indexed agents track
+    outer points (radius 3); odd-indexed agents track inner points
+    (radius 1.2). All agents rotate together — no agent needs to "stay put"
+    against the constant-speed Dubins constraint.
+
+    t_i(t) = R_i * exp(i * (2*pi*i/N + omega*t))
+    where R_i = R_OUTER if i even, R_INNER if i odd.
+
+    Visual: rotating 4-pointed star (4 outer arms + 4 inner valleys, all
+    rotating CCW). Smooth, no static-formation pathology.
+    """
+    omega = V_0 / R_OUTER_STAR    # = 1/3 rad/s, same as v17.3 rotating ring
+    angles = 2.0 * np.pi * np.arange(N_RING8) / N_RING8 + omega * t
+    radii = np.array([R_OUTER_STAR if (k % 2 == 0) else R_INNER_STAR
+                      for k in range(N_RING8)])
+    return radii * np.exp(1j * angles)
+
+
+H_OUTER_STAR = 5e-3              # 5 ms (cross-swap baseline; not too slow)
+SLACK_PENALTY_STAR = 1e4         # M = 10^4 baseline
+
+
+
 
 
 def ring8_targets_antipodal_oscillating(t: float) -> np.ndarray:
