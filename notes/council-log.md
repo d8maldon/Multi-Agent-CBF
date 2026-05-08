@@ -494,6 +494,30 @@ This is exactly the Pass 43/45 Nagumo-degenerate kinematic class, just realized 
 
 **Status of prior pass commitments:** Pass 41 (rotating-ring): HONOURED. Pass 47 pre-code APPROVAL: SUPERSEDED by Pass 47 empirical rollback (5th legitimate CONFLICT-WITH-PRIOR-SIGNOFF where pre-code analytical review missed structural Nagumo failure that only became visible at sim time). The §VIII disclosure now documents Pass 43, 45, 47 limitations cleanly.
 
+---
+
+## Pass 48 - 2026-05-08 - council on USER-PROPOSED COLLISION-CONE CBF (v17.9 future work)
+
+**Audited:** User insight: "the CBF should be in the complex domain so we don't need to linearize anything." Proposed alternative formulation:
+- L = Im((r_obs - r) * conj(v_a)) / V_0 (signed lateral offset of obstacle from velocity ray)
+- h_lat = L^2 - R^2 (collision-cone CBF)
+
+**Three-skill verdict (math-god + OG + controls):**
+
+**math-god** (Tao + Ames + Krstić): "User's complex-domain framing is imprecise — L is real-valued. BUT the user's instinct is correct: h_lat is a valid Ames-2019 CBF on (r, v_a), drops relative degree from 2 to 1, $L_g h_{\text{lat}}$ is generically non-zero on the safety boundary. **Mathematically valid, structurally cleaner than HOCBF.**"
+
+**OG** (Nagumo + Pontryagin): "The safe set $\{L^2 \ge R^2\}$ is the **classical Chakravarthy-Ghose 1998 collision cone**, lifted to a CBF. Velocity-dependent (more conservative laterally, less longitudinally). Foundational, not novel — and PRIOR ART exists: Singletary-Klingebiel-Bourne-Browning-Ames 2020 'lookahead CBF', Molnar-Ames 2022 'kinematic CBF'. The degeneracy at L=0 (vehicle aimed exactly at obstacle) moves into the *interior* of the unsafe set, which is operationally better than the HOCBF case where it lives on $\partial$safe."
+
+**controls** (Borrelli + Egerstedt + Lavretsky): "Drop-in feasibility — scalar inequality per obstacle in the QP, trivial replacement for HOCBF block. **Recommendation: SHIP v17.8 (Khatib + standard HOCBF) as LCSS submission unchanged.** Add Option A (collision-cone CBF) as **v17.9 / journal extension**, citing Singletary 2020 + Chakravarthy-Ghose 1998. Cleaner math but reopens validation."
+
+**CONSOLIDATED VERDICT: SHIP v17.8 for LCSS; v17.9 collision-cone CBF deferred to journal.**
+
+**User decision:** Option A (council recommendation) — ship v17.8 as-is, document collision-cone CBF as v17.9 / journal future work in §VIII.
+
+**Sign-off conditions:** Add a §VIII paragraph documenting the collision-cone formulation as future work; add Chakravarthy-Ghose 1998 + Singletary 2020 + Molnar-Ames 2022 citations.
+
+**Status of prior pass commitments:** Pass 47 (Khatib + HOCBF works): HONOURED. The user's insight is recognised and credited as the natural journal-extension direction.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.
