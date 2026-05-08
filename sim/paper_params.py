@@ -27,10 +27,9 @@ K_F = 8.0           # formation-coupling gain (v17.3 ring-rotation tuning)
 # Wang-Ames-Egerstedt 2015). When non-zero AND obstacles are passed to
 # reference_velocity, the AC reference already deflects around obstacles;
 # CBF then provides safety guarantee as backup. Set to 0 to disable.
-K_OBS = 4.0         # obstacle repulsion gain (only active near obstacles)
-                    # v17.8 tuning: weak enough that AC alone has small
-                    # obstacle h_min violation; CBF tightens to h ≥ 0
-                    # (visible safety filter contribution)
+K_OBS = 12.0        # obstacle repulsion gain (only active near obstacles)
+                    # Tuning: enough to keep AC trajectories cleanly clear of
+                    # obstacle in the diamond rendezvous; CBF then fine-tunes.
 GAMMA = 0.15        # adaptive-law gain (rate of theta_hat update)    [§8.3]
 
 # HOCBF class-K gains [§3.1: ddot h + (alpha_1 + alpha_2) dot h + alpha_1 alpha_2 h >= 0]
@@ -361,11 +360,62 @@ def diamond_v0() -> np.ndarray:
 
 
 def diamond_targets_static(t: float) -> np.ndarray:
-    """[§VIII diamond rendezvous]: static targets at the diamond vertices.
-    Targets are FIXED — vehicles drive toward fixed points, with central
-    obstacle forcing detours.
+    """[§VIII diamond rendezvous, static targets]: legacy version.
+    Returns the fixed diamond vertices. NOT compatible with constant-speed
+    Dubins steady-state — vehicles drift past these targets because they
+    cannot stop. Use diamond_targets_rotating instead.
     """
     return DIAMOND_TARGETS.copy()
+
+
+# Diamond demo kinematic match: rotation rate omega = V_0/D so vehicles can
+# exactly track the rotating-diamond steady state.
+DIAMOND_OMEGA = V_0 / DIAMOND_RADIUS   # = 1/3 rad/s; exact Dubins match
+T_DIAMOND_MORPH = 8.0    # [s] target morphs from corners to diamond
+
+def diamond_targets_rotating(t: float) -> np.ndarray:
+    """[§VIII diamond rendezvous, MORPHING-ROTATING targets]: each vehicle's
+    target starts at its initial corner (where the vehicle is) and morphs
+    to its diamond vertex over T_DIAMOND_MORPH seconds. The whole reference
+    formation rotates CW at omega = V_0/D throughout, so once vehicles
+    reach the diamond they continue tracking the rotating relative-
+    equilibrium.
+
+    target_i(t) = R_CW(omega*t) * lerp(corner_i, vertex_i, s(t))
+
+    where s(t) = 0.5*(1 - cos(pi*min(t,T_morph)/T_morph)) (cosine ramp
+    from 0 to 1 over T_morph), and R_CW(theta) = exp(-i*theta) rotates CW.
+
+    Pass 49 council Option A: only mathematically honest construction at
+    constant-speed Dubins. Pass 49 also flagged that static rendezvous
+    fails Poincaré-Bendixson; the morphing-rotating target is the
+    rotating-relative-equilibrium that v17.3 §VIII.1 already established
+    works for the ring rosette.
+    """
+    s = 0.5 * (1.0 - np.cos(np.pi * min(t / T_DIAMOND_MORPH, 1.0)))
+    morph = (1.0 - s) * DIAMOND_R0 + s * DIAMOND_TARGETS
+    return morph * np.exp(-1j * DIAMOND_OMEGA * t)
+
+
+def diamond_v0_aligned() -> np.ndarray:
+    """Initial v_{a,i}(0) aligned with the initial direction of dot{target_i}.
+
+    Computes d(target_i)/dt|_{t=0} (the initial target velocity) and sets
+    each vehicle's heading along that direction. This avoids the heading
+    transient that comes from misaligned initial heading vs target motion.
+    """
+    eps = 1e-3
+    t_now = diamond_targets_rotating(0.0)
+    t_dt = diamond_targets_rotating(eps)
+    target_velocity = (t_dt - t_now) / eps
+    # If a target velocity is essentially zero (pathological), fall back
+    # to direction-toward-vertex.
+    direction = np.where(
+        np.abs(target_velocity) > 0.05,
+        target_velocity / np.maximum(np.abs(target_velocity), 1e-6),
+        (DIAMOND_TARGETS - DIAMOND_R0) / np.abs(DIAMOND_TARGETS - DIAMOND_R0),
+    )
+    return V_0 * direction
 
 
 def obstacle_v0() -> np.ndarray:
