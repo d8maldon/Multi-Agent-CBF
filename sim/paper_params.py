@@ -115,6 +115,36 @@ def crossswap_targets_oscillating(t: float) -> np.ndarray:
     return CROSSSWAP_R0 + s * (CROSSSWAP_DIAGONAL - CROSSSWAP_R0)
 
 
+def check_target_reachability(T_swap: float = T_SWAP) -> dict:
+    """[§8.2 v17.1, Frazzoli Pass 31]: verify the cross-swap targets are
+    Dubins-reachable at the given T_swap.
+
+    Carathéodory 1909 accessibility: the target velocity |dot t_i(t)| must not
+    exceed V_0 if agents are to track the *instantaneous* target. With the
+    sinusoidal targets t_i(t) = c_i + 0.5*(1-cos(2*pi*t/T_swap))*(c_sigma(i)-c_i),
+    the peak target velocity is |dot t_i|_max = pi * |c_sigma(i) - c_i| / T_swap.
+
+    Returns dict with:
+      - 'peak_target_velocity': |dot t_i|_max [m/s]
+      - 'V_0': constant cruise speed [m/s]
+      - 'reachable': True iff peak_target_velocity <= V_0
+      - 'min_T_swap_for_reachability': pi * |c_sigma(i) - c_i| / V_0 [s]
+
+    Default §8.3 T_swap = 8 s gives peak ~3.33 m/s, exceeds V_0 = 1 m/s by 3x;
+    the agents track the *trend*, not instantaneous position. The §8.2 caveat
+    documents this — it is the realistic UAV-path-planner regime.
+    """
+    diag_distance = float(np.abs(CROSSSWAP_DIAGONAL[0] - CROSSSWAP_R0[0]))  # 6*sqrt(2)
+    peak_velocity = np.pi * diag_distance / T_swap
+    min_T_for_reach = np.pi * diag_distance / V_0
+    return {
+        "peak_target_velocity": peak_velocity,
+        "V_0": V_0,
+        "reachable": peak_velocity <= V_0,
+        "min_T_swap_for_reachability": min_T_for_reach,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Sanity checks
 # ---------------------------------------------------------------------------
