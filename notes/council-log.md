@@ -213,6 +213,62 @@
 
 **Status of prior pass commitments:** Pass 33: HONOURED. Pass 36's blockers: CLOSED via this consensus package.
 
+---
+
+## Pass 38 - 2026-05-07 - fresh-eyes blocker hunt at v17.2 head (user requested "fix all blockers")
+**Audited:** `paper/paper.tex` + `paper/refs.bib` + `sim/` + `tests/` at v17.2 main HEAD (post Pass 37 SHIP IT).
+**Verdicts (3 sub-passes):**
+
+**38a math-god-mode** (Tao + Ames + Boyd): SOUND with 3 🟠 caveats.
+- 🟠 [NEW, Ames] §VIII rosette h_min < 0 disclosure undersells dishonesty: calling it "expected slack" conflates slack variable $s_{ij}$ with barrier $h_{ij}$.
+- 🟠 [NEW, Ames] (A3'') $\eta_a^{\rm meas}$ asserted but no number reported.
+- 🟠 [NEW, Boyd/Tao] $\mathbb{Z}_8 \to 4$-orbit Lyapunov reduction stated but never used downstream — decorative claim.
+
+**38b OG** (Klein + Noether + Hilbert): SOUND with 1 MAJOR + 2 minor.
+- 🟠 [NEW, Noether] **Noether 1918 misapplied** to finite $\mathbb{Z}_8$ orbit count. Noether's 1918 theorem is for *continuous* Lie symmetries → conserved currents. The orbit-count is **Burnside / Hilbert 1890** invariant theory of finite groups. Replace.
+- 🟠 [NEW, Klein/Weyl] $D_8 \ltimes U(1)^8$ semidirect prose sloppy: must say reflections invert $U(1)$ orientation ($\psi_k \mapsto -\psi_{\sigma(k)}$), otherwise reader assumes direct product.
+- 🟡 [RECURRING from Pass 37 OG-mod-A] Klein 1872 bibtex empty journal — populate with *Math. Ann.* 43 (1893) reprint.
+
+**38c controls** (Ames + Boyd + Hespanha): **NEEDS REWRITE — 3 🔴 BLOCKERS + 2 🟠 MAJORS.**
+- 🔴 [CONFLICT-WITH-PRIOR-SIGNOFF of Pass 37, Ames] **BLOCKER-1**: h_min < 0 in 6/7 non-headline runs while safety filter engaged is dishonest for a CBF paper. **Fix** (council-agreed): demote Theorem 1(1) to soft-bound $h_{ij} \ge -\mathcal{O}(M^{-1/2})$; admit (A3'') honoured *only* with PE; reject "raise $M$ to $10^6$" (BLOCKER-2).
+- 🔴 [NEW, Boyd] **BLOCKER-2**: $M=10^5$ at OSQP conditioning ceiling (Stellato 2020 §5.2). **DO NOT raise further**. Cite ceiling explicitly.
+- 🔴 [CONFLICT-WITH-PRIOR-SIGNOFF of Pass 37 + Pass 17, Hespanha] **BLOCKER-3**: comm-delay $20\times$ claim conflates $N=4$ and $N=8$. Abstract+§VIII must split: $20\times$ at $N=4$ only; $N=8$ reports $|h_{\min}| \le 0.07$ at $\tau \in [20,100]$\,ms.
+- 🟠 [NEW, Ames] **MAJOR-1**: $\eta_a^{\rm meas}$ number not reported — assertion unfalsifiable.
+- 🟠 [NEW, Hespanha+Boyd] **MAJOR-2**: $K_T \Lambda_{\min} = 2.2$ at $N=8$ (not 2.4) — disclose split.
+
+**Empirical $\eta_a^{\rm meas}$ measurement (this pass, post-implementation):** $\min_t |a_{ii}(t)| = 4 \times 10^{-4}$ (median 4.17, 1\%-tile 0.10; 0.06\% of ticks have $|a_{ii}| < 0.01$). The $\eta_a^{\rm practical} \approx 1.6$ from §8.1 is a cross-swap value; the rosette runs in a small-margin sliding-mode regime where Filippov machinery does the analytical work.
+
+**Consensus across all three sub-passes:**
+1. Demote Thm 1(1) to $h \ge -\mathcal{O}(M^{-1/2})$ in §VIII prose; (A3'') honoured *strictly* but small-margin.
+2. Report $\eta_a^{\rm meas} = 4\times 10^{-4}$.
+3. Split comm-delay disclosure $N=4$ vs $N=8$.
+4. Document $M=10^5$ ceiling (Stellato 2020 §5.2); do NOT raise.
+5. Split $K_T \Lambda_{\min}$: 2.4 (N=4) / 2.2 (N=8).
+6. Replace Noether 1918 with Burnside/Hilbert 1890 + Weyl 1939 for the $\mathbb{Z}_8$ orbit count.
+7. Tighten $D_8 \ltimes U(1)^8$ prose: reflections invert $U(1)$.
+8. Populate Klein 1872 bibtex.
+9. Add equation \eqref{eq:orbit-decomp} so the orbit count is actually used (not decorative).
+
+---
+
+## Pass 39 - 2026-05-07 - cross-council acceptance check on Pass 38 fixes
+**Audited:** `paper/paper.tex` + `paper/refs.bib` after applying the 9 Pass 38 fixes.
+
+**Three-sub-pass parallel verification:**
+- 38a/Pass 39 (math-god-mode acceptance): 3/3 ACCEPT — Tikhonov soft-bound prose (line 157), $\eta_a^{\rm meas} = 4\times 10^{-4}$ (line 157), \eqref{eq:orbit-decomp} (lines 146-148).
+- 38b/Pass 39 (OG acceptance): 3/3 ACCEPT — Burnside/Hilbert 1890 (line 145), reflections invert $U(1)$ orientation (line 145), Klein 1872 with *Math. Ann.* 43 (1893).
+- 38c/Pass 39 (controls acceptance): 5/5 ACCEPT — Theorem 1(1) demoted (line 157), $M=10^5$ ceiling + Stellato 2020 §5.2 (line 153), comm-delay split (lines 176-178 + abstract), $K_T \Lambda_{\min}$ split (line 153), abstract "$N=4$" caveat (line 43).
+
+**One minor REJECT, fixed in this pass:** `@book{hilbert1890}` $\to$ `@article{hilbert1890}` since the entry has *Math. Ann.* 36 fields (Pass 39 OG-Hilbert).
+
+**Final score: 12/12 ACCEPT** after the bibtex-type correction.
+
+**Consolidated Pass-39 verdict:** **SUBMIT-READY** — full three-skill consensus that Pass 38's 3 BLOCKERS + 6 MAJOR/MINOR fixes are properly applied.
+
+**Sign-off conditions:** none. All three skills commit to no further additions on the Pass-38 scope (engineering honesty + classical-canon attribution + comm-delay disclosure split).
+
+**Status of prior pass commitments:** Pass 38: HONOURED. Pass 37 SHIP IT supseded by Pass 38 controls' CONFLICT-WITH-PRIOR-SIGNOFF (legitimate: new empirical evidence in the Pareto+comm-delay tables that Pass 37 council did not have); the package now restored to SUBMIT-READY at v17.3.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.
