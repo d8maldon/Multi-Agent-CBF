@@ -431,6 +431,35 @@ ALSO added: target-velocity feedforward `t_targets_dot` (numerical finite differ
 
 **Status of prior pass commitments:** Pass 41 (rotating-ring APPROVED): RESTORED. Pass 44 (star reconfig APPROVED in pre-code): SUPERSEDED — same legitimate CONFLICT-WITH-PRIOR-SIGNOFF pattern as Pass 42→43 (analytical pre-code review missed the kinematic-curvature mismatch that only became visible empirically). The §VIII disclosure documents both Pass 43 and Pass 45 limitations cleanly.
 
+---
+
+## Pass 46 - 2026-05-08 - cross-council REJECT v17.6 rendezvous + COUNTER-PROPOSAL h_min(t) inset
+
+**Audited:** Proposed v17.6 rendezvous-with-CBF-induced-ring scenario (4 agents converging on (0,0); CBF supposedly induces a stable rotating ring). User feedback: rotating-ring panels look identical, h_min difference (-0.06 vs +0.07) invisible at trajectory scale.
+
+**Three sub-passes UNANIMOUS REJECT (would be 4th rollback):**
+- **46a math-god** (Tao + Ames + Krstić): Same Pass 43 Nagumo failure — "four constant-speed Dubins agents on radial lines through the origin is the maximally symmetric instance of the coincident-trajectory degeneracy. Relative-degree drop on a positive-measure set near the origin." The user's "key insight" (different vs same target) is backwards: in cross-swap, AC pulls agents apart after centre crossing; in rendezvous AC pulls them in forever, demanding steady-state stand-off — same as the rotating-ring scenario but worse-conditioned.
+- **46b OG** (Nagumo + Filippov + K-P): Same Pass 45 multi-curvature failure — "heterogeneous lambda_i pulled toward one point at fixed speed cannot phase-lock; expect chaotic orbits, same as v17.5 star."
+- **46c controls** (Ames + Egerstedt + Tomlin): "CBF-induced-ring rendezvous demos exist in the literature (Singletary, Ames) but with VARIABLE SPEED or single-integrator kinematics. At constant-speed Dubins with relative-degree-2 HOCBF and heterogeneous LOE, the structural Nagumo failure dominates."
+
+**COUNTER-PROPOSAL (controls panel, accepted unanimously):** the visual drama lives in the h_min(t) TIME-SERIES, not the trajectory panel. Add a bottom-row inset to figure 1 with three h_min(t) traces:
+- AC: red fill below zero (collision visible)
+- AC+CBF: green fill above zero, hugging boundary
+- AC+CBF+PE: green fill above zero with PE wiggles
+
+Estimated implementation: 30 lines of matplotlib, no sim changes.
+
+**CONSOLIDATED VERDICT: REJECT v17.6 rendezvous; IMPLEMENT h_min(t) inset on Pass 41 figure.**
+
+**Empirical verification (post-implementation):** the h_min(t) inset reveals the safety story clearly:
+- AC: green decline + red dip below zero around t=14-16s (collision)
+- AC+CBF: green stays above zero, hugs the safe-set boundary (filter saved)
+- AC+CBF+PE: green stays above ζ = 0.080 margin target
+
+**Sign-off conditions:** ship the figure with the h_min(t) inset. The trajectory panels remain similar across the three scenarios (the kinematic constraint forces this), but the time-series inset provides the visual conviction that "the safety filter is working."
+
+**Status of prior pass commitments:** Pass 45 (rotating-ring restored, stop iterating): HONOURED. Pass 46 is a *display fix* on the Pass 41-approved figure, not a new scenario; loop-break heuristic preserved.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.

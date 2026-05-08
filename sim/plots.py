@@ -86,18 +86,24 @@ def _draw_oriented_triangle(ax, x, y, heading_rad, color, scale=0.25, alpha=1.0)
 def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path,
                           mode: str = "highway"):
     """Three side-by-side panels showing curved Dubins trajectories under each
-    scenario. v17.4: highway-mode draws lane lines (solid edges + dashed
-    centreline) for autonomous-vehicle context (Pass 42 council).
+    scenario, EACH WITH AN h_min(t) TIME-SERIES INSET (v17.6 Pass 46 council
+    counter-proposal): the visual drama of the safety filter lives in the
+    h_min trace, not the trajectory panel. AC's h_min(t) dips below zero
+    (collision); AC+CBF stays above zero (filter saved); AC+CBF+PE stays
+    above zero with PE wiggles.
     """
     is_highway = mode == "highway"
     if is_highway:
-        # Wide aspect for the road
         fig, axes = plt.subplots(3, 1, figsize=(11, 7.5), sharex=True, sharey=True)
     else:
-        fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharex=True, sharey=True)
+        # v17.6: 2-row layout — top row trajectories, bottom row h_min(t) traces
+        fig, axes_grid = plt.subplots(2, 3, figsize=(11, 5.5),
+                                       gridspec_kw={"height_ratios": [3, 1]})
+        axes = axes_grid[0]   # top row = trajectory panels
+        axes_h = axes_grid[1]  # bottom row = h_min(t) traces
     scenarios = [("AC", out_AC), ("AC+CBF", out_CBF), ("AC+CBF+PE", out_PE)]
 
-    for ax, (name, out) in zip(axes, scenarios):
+    for ax_idx, (ax, (name, out)) in enumerate(zip(axes, scenarios)):
         r = out["r"]               # (T, N) complex
         v_a = out["v_a"]           # (T, N) complex
         N = r.shape[1]
@@ -154,6 +160,45 @@ def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path,
         else:
             ax.set_xlim(-3.6, 3.6)
             ax.set_ylim(-3.6, 3.6)
+
+        # v17.6 Pass 46 counter-proposal: h_min(t) inset as bottom-row panel.
+        if not is_highway:
+            ax_h = axes_h[ax_idx]
+            t = out["t"]
+            h_min_t = out["h"].min(axis=1)
+            # Color-code: red where h<0 (collision), green where h>=0 (safe)
+            unsafe_mask = h_min_t < 0.0
+            safe_mask = ~unsafe_mask
+            # Plot full trace in muted colour, then overlay coloured segments
+            ax_h.plot(t, h_min_t, color="#888", linewidth=0.8, alpha=0.5)
+            if unsafe_mask.any():
+                ax_h.fill_between(t, h_min_t, 0.0, where=unsafe_mask,
+                                  color="#d62728", alpha=0.5,
+                                  interpolate=True, label="UNSAFE (h<0)")
+            if safe_mask.any():
+                ax_h.fill_between(t, h_min_t, 0.0, where=safe_mask,
+                                  color="#2ca02c", alpha=0.4,
+                                  interpolate=True, label="safe (h≥0)")
+            ax_h.axhline(0.0, color="black", linewidth=0.8)
+            ax_h.axhline(pp.ZETA, color="grey", linewidth=0.5,
+                         linestyle="--", alpha=0.6,
+                         label=fr"$\zeta = {pp.ZETA:.3f}$")
+            ax_h.set_xlabel("time [s]", fontsize=8)
+            if ax_idx == 0:
+                ax_h.set_ylabel(r"$\min_{ij}\,h_{ij}(t)$  $[\rm m^2]$",
+                                fontsize=8)
+            # Y-limits: focus on the safety boundary region. The initial-
+            # condition transient (h ≈ 1.5 m² at t=0) is irrelevant; what
+            # matters is the late-time approach to h=0. Clip y-max to make
+            # the red dip / green margin VISUALLY DRAMATIC.
+            y_min = min(h_min_t.min() * 1.3 - 0.05, -0.15)
+            y_max = 0.4   # tight ceiling: shows the boundary clearly
+            ax_h.set_ylim(y_min, y_max)
+            ax_h.tick_params(axis='both', labelsize=7)
+            ax_h.grid(True, alpha=0.3)
+            if ax_idx == 0:
+                ax_h.legend(loc="lower right", fontsize=6, ncol=1,
+                            framealpha=0.85)
 
     N_demo = out_PE["r"].shape[1]
     n_pairs = N_demo * (N_demo - 1) // 2
