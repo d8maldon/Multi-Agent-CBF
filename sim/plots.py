@@ -237,33 +237,43 @@ def figure_3_identifiability(out_PE: dict, save: Path):
 # ---------------------------------------------------------------------------
 
 def figure_4_safety(out_PE: dict, save: Path):
-    """Two-panel: top is min h_ij(t) safety margin, bottom is P_i(t) decay."""
+    """Three-panel: top mean h_ij(t) (full scale), middle min h_ij(t) (zoom near
+    safe-set boundary), bottom P_i(t) decay. v17.3.1: separated min/mean panels
+    so the safety margin is legible against the much larger mean (which grows as
+    agents escape the rosette centre)."""
     t = out_PE["t"]
     h_min = out_PE["h"].min(axis=1)
     h_mean = out_PE["h"].mean(axis=1)
     P = out_PE["P"]
 
-    fig, axes = plt.subplots(2, 1, figsize=(8, 5), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(8, 7), sharex=True)
 
     ax = axes[0]
-    ax.plot(t, h_min, color="#d62728", linewidth=1.6, label=r"$\min_{ij}\,h_{ij}(t)$")
-    ax.plot(t, h_mean, color="#1f77b4", linewidth=1.0, alpha=0.6,
+    ax.plot(t, h_mean, color="#1f77b4", linewidth=1.2,
             label=r"$\mathrm{mean}_{ij}\,h_{ij}(t)$")
-    ax.axhline(0.0, color="black", linewidth=0.7, label="safe-set boundary")
-    ax.axhline(pp.ZETA, color="grey", linewidth=0.7, linestyle="--",
-               label=fr"$\zeta = 0.5\, r_{{\rm safe}}^2 = {pp.ZETA:.3f}$")
-    ax.set_ylabel(r"$h_{ij}(t)$  $[\rm m^2]$")
-    ax.legend(loc="upper right", ncol=2)
+    ax.set_ylabel(r"mean $h_{ij}(t)$  $[\rm m^2]$")
+    ax.legend(loc="upper left")
     N_demo = out_PE["r"].shape[1]
     n_pairs = N_demo * (N_demo - 1) // 2
     sqrt_scale = np.sqrt(n_pairs)
     ax.set_title(
-        f"Figure 4 — v17.2 safety margin (N={N_demo}, {n_pairs} pairs; "
-        f"min h = {h_min.min():.3f}; "
-        rf"$\sqrt{{N(N-1)/2}} \approx {sqrt_scale:.1f}\times$ slack scaling vs N=2 ref)"
+        f"Figure 4 — v17.3 safety margin (N={N_demo}, {n_pairs} pairs; "
+        f"$\\min_t \\min_{{ij}} h_{{ij}}$ = {h_min.min():.3f} m$^2$; "
+        rf"$\sqrt{{N(N-1)/2}} \approx {sqrt_scale:.1f}\times$ slack scaling)"
     )
 
+    # Middle: min h_ij zoom near safe-set boundary
     ax = axes[1]
+    ax.plot(t, h_min, color="#d62728", linewidth=1.6, label=r"$\min_{ij}\,h_{ij}(t)$")
+    ax.axhline(0.0, color="black", linewidth=0.8, label="safe-set boundary")
+    ax.axhline(pp.ZETA, color="grey", linewidth=0.7, linestyle="--",
+               label=fr"$\zeta = 0.5\, r_{{\rm safe}}^2 = {pp.ZETA:.3f}$")
+    ax.set_ylabel(r"$\min_{ij}\,h_{ij}(t)$  $[\rm m^2]$")
+    h_zoom = max(abs(h_min.min()) * 1.5, 0.5)
+    ax.set_ylim(-h_zoom, h_zoom)
+    ax.legend(loc="upper right", ncol=2, fontsize=8)
+
+    ax = axes[2]
     for i in range(P.shape[1]):
         ax.plot(t, P[:, i], color=AGENT_COLOURS[i], linewidth=1.2,
                 label=f"agent {i}")
@@ -373,9 +383,11 @@ def figure_6_comm_delay(delay_results: list, save: Path):
     ax.set_title("v17 empirical robustness margin against (A4) relaxation")
     ax.legend(loc="upper right")
 
+    N_demo = delay_results[0][1]["r"].shape[1]
     fig.suptitle(
-        "Figure 6 — v17.1 comm-delay sweep $\\tau \\in \\{0, 5, 20, 50, 100\\}$ ms\n"
-        "(v17 R3 latency residual eliminates v16's 5 ms cliff — 20× robustness improvement)",
+        f"Figure 6 — v17.2 comm-delay sweep $\\tau \\in \\{{0, 5, 20, 50, 100\\}}$ ms (N={N_demo})\n"
+        "(R3 latency residual partially absorbs broadcast delay; 20$\\times$ robustness "
+        "verified at $N{=}4$ only — see §VIII)",
         fontsize=11, y=1.04
     )
     fig.tight_layout()
