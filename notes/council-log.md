@@ -460,6 +460,40 @@ Estimated implementation: 30 lines of matplotlib, no sim changes.
 
 **Status of prior pass commitments:** Pass 45 (rotating-ring restored, stop iterating): HONOURED. Pass 46 is a *display fix* on the Pass 41-approved figure, not a new scenario; loop-break heuristic preserved.
 
+---
+
+## Pass 47 - 2026-05-08 - APPROVED-then-EMPIRICALLY-DEGENERATE: 4-vehicle obstacle-avoidance demo
+
+**Audited:** Proposed v17.7 obstacle-avoidance scenario — 4 vehicles cross-swap to opposite corners through a field of 3 static circular obstacles. User said "I think we need this!"
+
+**Pre-code council (3 sub-passes, all APPROVED):** "PROCEED-WITH-IMPLEMENTATION." Math-god analysis: at closest approach $(r_i-r_o) \perp v_i$, so $(r_i-r_o)^\top \dot v_i$ has full authority and the $2V_0^2$ kinematic-floor in $\ddot h$ is *Nagumo-positive* (helpful). OG: classical Ames-Xu-Grizzle 2014 obstacle CBF, NOT recycled from Pass 43/45. Controls: ~40 LoC for obstacle constraints in qp_resolvent.
+
+**Implementation:**
+- New CBF helpers in `sim/dynamics.py`: `cbf_h_obstacle`, `hocbf_residual_obstacle`, `hocbf_jacobian_obstacle`
+- `qp_resolvent.solve_qp` extended with `obstacles=()` kwarg; obstacle constraints added one row per (agent, obstacle) pair
+- Integrator + `_eval` + `_rk4_step` plumbed for `obstacles` arg
+- `paper_params.OBSTACLE_R0`, `OBSTACLE_TARGETS`, `OBSTACLE_LIST` defined
+- Standalone runner `make_obstacle_demo.py`
+
+**EMPIRICAL FAILURE (Pass 47 self-rollback):**
+- AC: pairwise h_min = -0.160, obstacle h_min = -1.960 (vehicles plow through obstacles)
+- AC+CBF: pairwise h_min = -0.160, obstacle h_min = -1.960 (IDENTICAL TO AC — filter does nothing)
+- AC+CBF+PE: vehicles take curved paths around obstacles (PE perturbation breaks the head-on geometry), but obstacle h_min still -1.957
+
+**Diagnosis:** the Pass 47 council was wrong about the protective $2V_0^2$ floor. At any moment when the AC reference points STRAIGHT AT an obstacle (vehicle's heading is anti-parallel to $r_i - r_{\text{obs}}$):
+- $a_{\text{obs}} = 2\Im((r_i-r_{\text{obs}})\overline{v_i}) = 0$ (cross-product of parallel vectors)
+- The HOCBF cannot deflect via $u_2$
+- The slack absorbs the entire deficit
+- The vehicle plows through the obstacle
+
+This is exactly the Pass 43/45 Nagumo-degenerate kinematic class, just realized in a different geometry. The cleanest fix would be either (a) a path-planning reference (Karaman-Frazzoli 2011 RRT*) so the AC reference already routes around obstacles, or (b) speed-actuated kinematics. Both are out of v17 scope.
+
+**CONSOLIDATED VERDICT: ROLLBACK to rotating-ring (Pass 41 / Pass 46 inset version).** Add a "Why not obstacles?" remark in §VIII alongside Pass 43 (highway) and Pass 45 (star), completing the disclosure of constant-speed Dubins kinematic limitations. Code retained as `make_obstacle_demo.py` for future speed-actuated work.
+
+**Sign-off conditions:** ship the rotating-ring v17.6 (with h_min(t) inset) as headline; obstacle demo retained as supplementary code with §VIII disclosure; ship the rotating-ring GIF (`output/gifs/ring8_rotation.gif`) as visualization aid.
+
+**Status of prior pass commitments:** Pass 41 (rotating-ring): HONOURED. Pass 47 pre-code APPROVAL: SUPERSEDED by Pass 47 empirical rollback (5th legitimate CONFLICT-WITH-PRIOR-SIGNOFF where pre-code analytical review missed structural Nagumo failure that only became visible at sim time). The §VIII disclosure now documents Pass 43, 45, 47 limitations cleanly.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.

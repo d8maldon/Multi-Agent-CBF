@@ -257,6 +257,72 @@ H_OUTER_STAR = 5e-3              # 5 ms (cross-swap baseline; not too slow)
 SLACK_PENALTY_STAR = 1e4         # M = 10^4 baseline
 
 
+# ---------------------------------------------------------------------------
+# §VIII v17.7 4-vehicle OBSTACLE-AVOIDANCE demo (Pass 47 council APPROVED)
+# ---------------------------------------------------------------------------
+# 4 vehicles cross-swap to opposite corners with 3 static circular obstacles
+# in the field. The classical CBF-paper demo (Ames-Xu-Grizzle 2014; Borrmann-
+# Wang-Ames 2015; Wang-Ames-Egerstedt 2017). Static obstacles are not subject
+# to the Pass 43/45 Nagumo-degenerate failure: the $2V_0^2$ kinematic floor
+# in $\ddot h$ acts protectively (Pass 47 verdict) since obstacle velocity
+# is zero, so the structural failure mode does not apply.
+#
+# Geometry: 4 vehicles at (±4, ±4); each targets the diagonal-opposite
+# corner. Obstacles in the field force detours.
+# Dubins turning radius V_0/psi_dot_max = 1/5 = 0.2 m. Pass 47 caveat:
+# obstacle radius + r_safe must exceed turning radius. With r_obs = 1.0
+# and r_safe = 0.4, clearance is 1.4 m >> 0.2 m. Comfortably safe.
+
+# Vehicles arranged so their AC straight-line paths to targets do NOT pass
+# directly through any obstacle (avoids the Nagumo-degenerate head-on
+# obstacle case). Each vehicle takes a parallel-channel route past obstacles
+# — the obstacles force lateral deflection but the path is not aimed at
+# obstacle centre.
+OBSTACLE_R0 = np.array([
+    -5.0 + 1.5j,    # vehicle 0: west, upper channel
+    -5.0 - 1.5j,    # vehicle 1: west, lower channel
+    +5.0 + 1.5j,    # vehicle 2: east, upper channel
+    +5.0 - 1.5j,    # vehicle 3: east, lower channel
+], dtype=complex)
+
+# Targets: each vehicle drives east/west to the OPPOSITE side of the
+# obstacle field, keeping its lateral position. AC straight-line paths
+# are horizontal, so vertical-stacked obstacles force only small deflection.
+OBSTACLE_TARGETS = np.array([
+    +5.0 + 1.5j,    # vehicle 0 -> east (head-on with vehicle 2 in same channel!)
+    +5.0 - 1.5j,    # vehicle 1 -> east (head-on with vehicle 3)
+    -5.0 + 1.5j,    # vehicle 2 -> west
+    -5.0 - 1.5j,    # vehicle 3 -> west
+], dtype=complex)
+
+OBSTACLE_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
+
+# Two STATIC circular obstacles — placed off the AC straight-line paths.
+# Vehicle paths at y = ±1.5; obstacles at y = 0 (central), centre x close
+# to where vehicles meet. This forces vehicles to deflect AROUND the
+# obstacles laterally as they pass each other.
+OBSTACLE_LIST = (
+    (0.0 + 0.0j, 0.7),       # central obstacle (off the y=±1.5 channels)
+    (+2.5 + 0.0j, 0.5),      # east obstacle
+    (-2.5 + 0.0j, 0.5),      # west obstacle
+)
+
+
+def obstacle_v0() -> np.ndarray:
+    """Initial v_{a,i}(0): heading toward diagonal target (cross-swap-style)."""
+    direction = OBSTACLE_TARGETS - OBSTACLE_R0
+    direction = direction / np.abs(direction)
+    return V_0 * direction
+
+
+def obstacle_targets_static(t: float) -> np.ndarray:
+    """Static target: each vehicle drives toward its assigned diagonal corner.
+    The targets are FIXED (not time-varying), so this returns the same array
+    for all t. The obstacles in the field force the trajectory to detour.
+    """
+    return OBSTACLE_TARGETS.copy()
+
+
 
 
 

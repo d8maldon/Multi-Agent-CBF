@@ -114,6 +114,7 @@ def _eval(state: State,
           phases: np.ndarray,
           solver_cache: dict,
           use_safety_filter: bool = True,
+          obstacles: tuple = (),
           comm_delay: float = 0.0) -> tuple:
     """Compute u^safe and all derivatives at the current state.
 
@@ -202,6 +203,7 @@ def _eval(state: State,
             u_i_safe, slacks_i, _ = qpr.solve_qp(
                 i, r_view, v_view, th_view, u_2_qp_input, pe_projected[i],
                 pair_active, edges, delta_ij, solver_cache,
+                obstacles=obstacles,
             )
             u_2_safe[i] = u_i_safe
             slacks_all.append(slacks_i)
@@ -273,11 +275,12 @@ def _rk4_step(state: State,
               phases: np.ndarray,
               solver_cache: dict,
               use_safety_filter: bool = True,
-              comm_delay: float = 0.0) -> tuple:
+              comm_delay: float = 0.0,
+              obstacles: tuple = ()) -> tuple:
     """One RK4 step over h_outer."""
     h = pp.H_OUTER
     args = (t_targets_fn, edges, A_e, omegas, phases, solver_cache,
-            use_safety_filter, comm_delay)
+            use_safety_filter, obstacles, comm_delay)
 
     d1, info_1 = _eval(state, *args)
     d2, _ = _eval(_shifted(state, d1, h / 2), *args)
@@ -324,7 +327,8 @@ def run(r0: np.ndarray, v_a0: np.ndarray,
         T_final: float,
         log_every: int = 1,
         use_safety_filter: bool = True,
-        comm_delay: float = 0.0) -> dict:
+        comm_delay: float = 0.0,
+        obstacles: tuple = ()) -> dict:
     """Run a v17 complex-Dubins simulation from initial conditions.
 
     Parameters
@@ -408,7 +412,8 @@ def run(r0: np.ndarray, v_a0: np.ndarray,
 
         # RK4 step
         state, info = _rk4_step(state, t_targets_fn, edges, A_e, omegas, phases,
-                                 solver_cache, use_safety_filter, comm_delay)
+                                 solver_cache, use_safety_filter, comm_delay,
+                                 obstacles=obstacles)
 
         # Hysteresis update once per outer step (rate-independent K-P operator)
         state.pair_active = dyn.update_hysteresis(
