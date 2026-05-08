@@ -390,6 +390,47 @@ ALSO added: target-velocity feedforward `t_targets_dot` (numerical finite differ
 
 **Status of prior pass commitments:** Pass 41 (rotating-ring APPROVED): RESTORED. Pass 42 (highway pivot APPROVED): SUPERSEDED by Pass 43 (the pre-code analytical review missed the structural Nagumo degeneracy that only became visible empirically; legitimate CONFLICT-WITH-PRIOR-SIGNOFF).
 
+---
+
+## Pass 44 - 2026-05-07 - cross-council pre-code review of FORMATION-DEFENSE vs STAR-RECONFIG (user request: "formation flying a shape with enemies, OR star reconfiguration without colliding")
+
+**Audited:** Two new scenario proposals — Option A (4 friendlies + 2-3 enemies, formation defense) vs Option B (8 agents reconfiguring from circle to star).
+
+**Three sub-passes UNANIMOUS Option B:**
+- **44a math-god** (Ames + Tomlin + Egerstedt): B. Option A re-introduces Pass 43 Nagumo failure (enemies on collision course at coincident-x). Option B's circle-start + nearest-vertex assignment guarantees non-crossing trajectories.
+- **44b OG** (Klein + Filippov + Cartan): B. Option A is canonically a pursuit-evasion / HJI problem on speed-actuated kinematics, not constant-speed HOCBF. Forcing it would repeat Pass 42-43's category error.
+- **44c controls** (Mesbahi-Egerstedt + Lavretsky + Slotine): B. Option A needs integrator surgery for uncontrolled enemy agents + asymmetric K_4 graph + new caption story. Option B is paper_params.py-only.
+
+**Pre-implementation gate:** verify trajectories non-crossing on coincident-x. Option B's 8-pointed star (alternating-radius targets at same angle) satisfies this by construction.
+
+**Sign-off conditions:** implement Option B; all three skills commit to Pass 45 plot review before §VIII text changes.
+
+---
+
+## Pass 45 - 2026-05-07 - cross-council ROLLBACK verdict on rotating-star plots
+
+**Audited:** iter18, iter19, iter20 figures from the v17.5 star reconfiguration attempt:
+- iter18 (radial-only target, tangent init): chaos (heading 90° transient)
+- iter19 (target-aligned init): chaos (constant-speed Dubins can't "stay still")
+- iter20 (rotating star, tangent init): clean outer arcs but inner agents spiral tightly because $V_0/R_{\text{inner}}$ exceeds the rotation rate $V_0/R_{\text{outer}}$
+
+**Empirical iter20:**
+- AC: -0.093, AC+CBF: +0.035, AC+CBF+PE: +0.032 (filter helps)
+- A_e sweep: 0.05 → -0.154, 0.20 → -0.061 (over/under-injection)
+
+**Three sub-passes UNANIMOUS verdict B = REVERT to Pass 41 rotating-ring:**
+- **45a math-god** (Tao/Scholze): "h_min = +0.035 is fine analytically, but a reviewer's eye lands on the inner pretzel before the legend. The ring has a clean group-orbit interpretation (D_8 ⋉ U(1)^8) that the star figure cannot claim under unicycle dynamics."
+- **45b OG** (Lyapunov + Poincaré + Birkhoff): "iter8 SHOWS relative-equilibrium phase-lock; iter20 SHOWS a constraint violation the formation loop is fighting. Defer multi-radius to speed-actuated dynamics — that's the honest statement."
+- **45c controls** (Ames + Egerstedt + Tomlin): "iter20's inner spirals make the CBF look like it's rescuing a malfunctioning nominal — technically true but reads as instability. iter8's three-panel progression is textbook and already approved."
+
+**Diagnosis:** at constant speed $|v_a|=V_0$, agents at different radii have different natural curvatures $V_0/R$. A single rotation rate cannot phase-lock multi-radius formations — inner agents over-curve. Same kinematic class as Pass 43 highway: structural failure, not numerical / disclosure-rescuable.
+
+**CONSOLIDATED VERDICT: B — restore Pass 41 rotating-ring (iter8) as headline.** Add a one-paragraph "Why not a multi-radius star?" remark in §VIII alongside the existing "Why not a highway?" remark, completing the disclosure of constant-speed Dubins limitations. **Do NOT pursue further visual experiments.** The user has been patient through ~10 iterations; the rotating ring already satisfies "this looks like the system is working." Shipping a known-good figure beats an 11th experiment.
+
+**Sign-off conditions:** restore iter8 (matches Pass 41 numbers exactly: -0.062 / +0.073 / +0.093 / 20× comm-delay); add §VIII multi-radius disclosure paragraph; keep `star_run` + `STAR_R0` etc. in code as inert reference for future speed-actuated work.
+
+**Status of prior pass commitments:** Pass 41 (rotating-ring APPROVED): RESTORED. Pass 44 (star reconfig APPROVED in pre-code): SUPERSEDED — same legitimate CONFLICT-WITH-PRIOR-SIGNOFF pattern as Pass 42→43 (analytical pre-code review missed the kinematic-curvature mismatch that only became visible empirically). The §VIII disclosure documents both Pass 43 and Pass 45 limitations cleanly.
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.

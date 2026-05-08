@@ -58,14 +58,12 @@ def numerical_overrides(H_OUTER: float, SLACK_PENALTY: float):
         pp.SLACK_PENALTY = saved_M
 
 
-def ring8_run(A_e: float, T_final: float, log_every: int,
-              use_safety_filter: bool = True,
-              comm_delay: float = 0.0,
-              slack_penalty: float | None = None) -> dict:
-    """v17.3 N=8 continuous-rotation ring (Sepulchre-Paley-Leonard 2007
-    phase-locked rotation). Pass 41 council APPROVED. Pass 43 council
-    confirmed as the canonical headline demo (after the highway pivot was
-    rolled back). Heterogeneous LAMBDA_TRUE in [0.55, 0.9] preserved.
+def ring8_run_legacy(A_e: float, T_final: float, log_every: int,
+                     use_safety_filter: bool = True,
+                     comm_delay: float = 0.0,
+                     slack_penalty: float | None = None) -> dict:
+    """[Legacy v17.3 ring rotation] Replaced by star_run as headline at
+    v17.5. Kept for reference / unit tests; not called from main().
     """
     r0 = pp.RING8_R0.copy()
     v_a0 = pp.ring8_v0()
@@ -84,6 +82,35 @@ def ring8_run(A_e: float, T_final: float, log_every: int,
         )
         out["lambda_true"] = pp.LAMBDA_TRUE.copy()
         return out
+
+
+def star_run(A_e: float, T_final: float, log_every: int,
+             use_safety_filter: bool = True,
+             comm_delay: float = 0.0) -> dict:
+    """One §VIII v17.5 N=8 8-pointed-star reconfiguration run.
+
+    8 agents start on radius-3 circle; even-indexed agents stay at radius 3
+    (outer star points); odd-indexed agents move radially inward to
+    radius 1.2 (inner star valleys). Pass 44 council UNANIMOUS Option B
+    with circle-start + nearest-vertex (radial) assignment for guaranteed
+    non-crossing trajectories.
+
+    Uses cross-swap baseline numerical scheme (H_OUTER = 5 ms, M = 10^4)
+    and heterogeneous LAMBDA_TRUE in [0.55, 0.9].
+    """
+    r0 = pp.STAR_R0.copy()
+    v_a0 = pp.star_v0()
+    return integrator.run(
+        r0=r0, v_a0=v_a0,
+        r_ref0=r0.copy(), v_ref0=v_a0.copy(),
+        edges=pp.STAR_EDGES,
+        t_targets_fn=pp.star_targets_oscillating,
+        A_e=A_e,
+        T_final=T_final,
+        log_every=log_every,
+        use_safety_filter=use_safety_filter,
+        comm_delay=comm_delay,
+    )
 
 
 def highway_run_legacy(A_e: float, T_final: float, log_every: int,
@@ -189,15 +216,15 @@ def main(quick: bool = False):
 
     # --- 3 ring8 rosette scenarios for figures 1 + 2 ---
     print("[1/3] AC alone  (no safety filter, no PE) — N=8 antipodal ring")
-    out_AC = ring8_run(0.0, T_cross, log_cross, use_safety_filter=False)
+    out_AC = ring8_run_legacy(0.0, T_cross, log_cross, use_safety_filter=False)
     print(_summary("AC", out_AC))
 
     print("[2/3] AC + CBF  (safety filter on, no PE) — N=8 antipodal ring")
-    out_CBF = ring8_run(0.0, T_cross, log_cross, use_safety_filter=True)
+    out_CBF = ring8_run_legacy(0.0, T_cross, log_cross, use_safety_filter=True)
     print(_summary("AC+CBF", out_CBF))
 
     print("[3/3] AC + CBF + PE  (paper headline scenario, A_e = 0.10*psi_dot_max)")
-    out_PE = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
+    out_PE = ring8_run_legacy(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
                        use_safety_filter=True)
     print(_summary("AC+CBF+PE", out_PE))
 
@@ -220,7 +247,7 @@ def main(quick: bool = False):
             print(f"     A_e/psi_dot_max = {A_e_frac:.2f}: re-using AC+CBF+PE run")
         else:
             print(f"     A_e/psi_dot_max = {A_e_frac:.2f}: running...")
-            out = ring8_run(A_e, T_cross, log_cross, use_safety_filter=True)
+            out = ring8_run_legacy(A_e, T_cross, log_cross, use_safety_filter=True)
             print(_summary(f"A_e={A_e_frac:.2f}", out))
         sweep.append((A_e, out))
 
@@ -233,7 +260,7 @@ def main(quick: bool = False):
             print(f"     tau = {tau_ms} ms: re-using AC+CBF+PE run")
         else:
             print(f"     tau = {tau_ms} ms: running...")
-            out = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
+            out = ring8_run_legacy(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
                             use_safety_filter=True, comm_delay=tau_ms * 1e-3)
             print(_summary(f"tau={tau_ms}ms", out))
         delay_runs.append((tau_ms, out))
