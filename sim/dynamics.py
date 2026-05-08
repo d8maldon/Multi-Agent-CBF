@@ -175,6 +175,43 @@ def hocbf_jacobian_other(r_i: complex, r_j: complex, v_j: complex) -> float:
     return -2.0 * float(np.imag((r_i - r_j) * np.conj(v_j)))
 
 
+# ---------------------------------------------------------------------------
+# v17.7 STATIC OBSTACLE CBF helpers (Pass 47 council APPROVED)
+# ---------------------------------------------------------------------------
+# Each obstacle is a fixed circle (centre, radius). For agent i, the CBF is
+#   h_obs(r_i) = |r_i - r_obs|^2 - (r_safe + r_obs)^2
+# Treating the obstacle as a virtual agent with v_obs = 0, dot v_obs = 0 gives:
+#   dot h_obs   = 2 Re((r_i - r_obs) * conj(v_i))
+#   ddot h_obs  = 2 |v_i|^2 + 2 (r_i - r_obs) . dot v_i
+# The HOCBF-2 condition is: ddot h + (alpha_1 + alpha_2) dot h + alpha_1*alpha_2*h >= 0.
+# The obstacle has NO control input, so only the agent's u_2 appears in the
+# linear (jacobian) term.
+
+def cbf_h_obstacle(r_i: complex, r_obs: complex, r_obs_radius: float) -> float:
+    """h_obs = |r_i - r_obs|^2 - (r_safe + r_obs)^2 (static obstacle)."""
+    return float(np.abs(r_i - r_obs) ** 2) - (pp.R_SAFE + r_obs_radius) ** 2
+
+
+def hocbf_residual_obstacle(r_i: complex, r_obs: complex, v_i: complex,
+                             h_val: float) -> float:
+    """Theta-independent (b0) part of the HOCBF for static obstacle. Same form
+    as the pairwise hocbf_residual but with v_obs = 0:
+        b0_obs = 2 |v_i|^2 + 2(alpha_1+alpha_2) Re((r_i - r_obs) conj(v_i))
+                 + alpha_1*alpha_2*h_obs.
+    """
+    return (2.0 * np.abs(v_i) ** 2
+            + 2.0 * (pp.ALPHA_1 + pp.ALPHA_2) * np.real((r_i - r_obs) * np.conj(v_i))
+            + pp.ALPHA_1 * pp.ALPHA_2 * h_val)
+
+
+def hocbf_jacobian_obstacle(r_i: complex, r_obs: complex, v_i: complex) -> float:
+    """Coefficient of u_{2,i} in the static-obstacle HOCBF constraint. Same as
+    hocbf_jacobian_self but with r_j replaced by r_obs:
+        a_obs_self = 2 Im((r_i - r_obs) conj(v_i)).
+    """
+    return 2.0 * float(np.imag((r_i - r_obs) * np.conj(v_i)))
+
+
 def update_hysteresis(r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
                       u_2_AC: np.ndarray, pair_active_in: dict, edges: tuple) -> dict:
     """[§3.1 v17]: hysteretic active-set selection. Engagement when c_ij <= eps,

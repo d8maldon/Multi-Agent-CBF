@@ -47,7 +47,8 @@ from . import dynamics as dyn
 
 def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
              u_2_AC: np.ndarray, pe_projected_i: float, pair_active: dict,
-             edges: tuple, delta_ij: dict, solver_cache: dict) -> tuple:
+             edges: tuple, delta_ij: dict, solver_cache: dict,
+             obstacles: tuple = ()) -> tuple:
     """Solve agent i's per-agent QP-resolvent [§3.2 v17].
 
     Parameters
@@ -87,15 +88,20 @@ def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
     active_pairs = [j for j in dyn.neighbours(i, edges)
                     if pair_active.get(frozenset({i, j}), False)]
     k = len(active_pairs)
-    n = 1 + k                                      # decision dim: u_2 + slacks
+    # v17.7: also include static-obstacle constraints (Pass 47 council).
+    # Obstacles are always active (no hysteresis on obstacles since they
+    # don't move and the relative-degree-2 HOCBF is well-behaved).
+    n_obs = len(obstacles)
+    k_total = k + n_obs                            # total slack count
+    n = 1 + k_total                                 # decision dim: u_2 + slacks
 
     # Quadratic cost Hessian [§3.2 v17]:
     #   0.5 v^T P v + q^T v with P = diag(2, 2M, ..., 2M)
-    P_diag = np.concatenate([[2.0], 2.0 * pp.SLACK_PENALTY * np.ones(k)])
+    P_diag = np.concatenate([[2.0], 2.0 * pp.SLACK_PENALTY * np.ones(k_total)])
     P_mat = sparse.diags(P_diag).tocsc()
 
     # Linear cost: from (u_2 - target)^2 = u_2^2 - 2 target u_2 + const
-    q_vec = np.concatenate([[-2.0 * target], np.zeros(k)])
+    q_vec = np.concatenate([[-2.0 * target], np.zeros(k_total)])
 
     rows = []
     l_vec = []
@@ -123,8 +129,24 @@ def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
         l_vec.append(rhs_const)
         u_vec.append(np.inf)
 
-    # slack >= 0
-    for k_idx in range(k):
+    # v17.7 STATIC OBSTACLE constraints (Pass 47 council). Each obstacle
+    # contributes one HOCBF constraint with its own slack:
+    #   theta_hat[i] * b0_obs + a_obs * u_2 + s_obs >= 0
+    # No cross-term (obstacle has no control).
+    for o_idx, (r_obs, r_obs_radius) in enumerate(obstacles):
+        h_obs = dyn.cbf_h_obstacle(r[i], r_obs, r_obs_radius)
+        b0_obs = dyn.hocbf_residual_obstacle(r[i], r_obs, v_a[i], h_obs)
+        a_obs = dyn.hocbf_jacobian_obstacle(r[i], r_obs, v_a[i])
+        rhs_const = -theta_hat[i] * b0_obs
+        row = np.zeros(n)
+        row[0] = a_obs
+        row[1 + k + o_idx] = 1.0                   # +slack_obs
+        rows.append(row)
+        l_vec.append(rhs_const)
+        u_vec.append(np.inf)
+
+    # slack >= 0 (for both pair and obstacle slacks)
+    for k_idx in range(k_total):
         row = np.zeros(n)
         row[1 + k_idx] = 1.0
         rows.append(row)
@@ -142,8 +164,8 @@ def solve_qp(i: int, r: np.ndarray, v_a: np.ndarray, theta_hat: np.ndarray,
     l_arr = np.array(l_vec)
     u_arr = np.array(u_vec)
 
-    # Solver caching keyed on (agent, active-set signature) [§3.3 v17]
-    cache_key = (i, tuple(active_pairs))
+    # Solver caching keyed on (agent, active-set signature, obstacle count)
+    cache_key = (i, tuple(active_pairs), n_obs)
     cached = solver_cache.get(cache_key)
     if cached is None:
         prob = osqp.OSQP()
