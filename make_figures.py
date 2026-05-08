@@ -62,16 +62,16 @@ def ring8_run(A_e: float, T_final: float, log_every: int,
               use_safety_filter: bool = True,
               comm_delay: float = 0.0,
               slack_penalty: float | None = None) -> dict:
-    """One §8.2 v17.2 N=8 antipodal-ring rosette run (council Pass 37 consensus).
-
-    H_OUTER = 10 ms, SLACK_PENALTY = 5e4 by default; pass slack_penalty=1e5 for
-    the M=10× fallback if empirical h_min < 0 (Pass 37 Ames gate).
+    """v17.3 N=8 continuous-rotation ring (Sepulchre-Paley-Leonard 2007
+    phase-locked rotation). Pass 41 council APPROVED. Pass 43 council
+    confirmed as the canonical headline demo (after the highway pivot was
+    rolled back). Heterogeneous LAMBDA_TRUE in [0.55, 0.9] preserved.
     """
     r0 = pp.RING8_R0.copy()
     v_a0 = pp.ring8_v0()
     M = slack_penalty if slack_penalty is not None else pp.SLACK_PENALTY_RING8
     with numerical_overrides(pp.H_OUTER_RING8, M):
-        return integrator.run(
+        out = integrator.run(
             r0=r0, v_a0=v_a0,
             r_ref0=r0.copy(), v_ref0=v_a0.copy(),
             edges=pp.RING8_EDGES,
@@ -82,6 +82,34 @@ def ring8_run(A_e: float, T_final: float, log_every: int,
             use_safety_filter=use_safety_filter,
             comm_delay=comm_delay,
         )
+        out["lambda_true"] = pp.LAMBDA_TRUE.copy()
+        return out
+
+
+def highway_run_legacy(A_e: float, T_final: float, log_every: int,
+                       use_safety_filter: bool = True,
+                       comm_delay: float = 0.0) -> dict:
+    """[Legacy v17.4 attempt, NOT USED in main()] Highway lane-change run.
+
+    Pass 43 council unanimous: rolled back. Constant-speed Dubins at
+    coincident-x conflicting-swap is Nagumo-degenerate (relative-degree
+    drop on positive-measure set, not isolated). Restored ring8_run as
+    the §VIII headline. Function kept for reference / future work where
+    the kinematics could be lifted to speed-actuated Dubins.
+    """
+    r0 = pp.HIGHWAY_R0.copy()
+    v_a0 = pp.highway_v0()
+    return integrator.run(
+        r0=r0, v_a0=v_a0,
+        r_ref0=r0.copy(), v_ref0=v_a0.copy(),
+        edges=pp.HIGHWAY_EDGES,
+        t_targets_fn=pp.highway_targets_oscillating,
+        A_e=A_e,
+        T_final=T_final,
+        log_every=log_every,
+        use_safety_filter=use_safety_filter,
+        comm_delay=comm_delay,
+    )
 
 
 def crossswap_run(A_e: float, T_final: float, log_every: int,
@@ -173,12 +201,11 @@ def main(quick: bool = False):
                        use_safety_filter=True)
     print(_summary("AC+CBF+PE", out_PE))
 
-    # Pass 37 Ames empirical h_min gate: if h_min < 0, re-run at M=1e5
-    if out_PE['h'].min() < 0.0:
-        print(f"  [WARN] h_min = {out_PE['h'].min():.3f} < 0 - re-running at M=5e5 fallback")
-        out_PE = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
-                           use_safety_filter=True, slack_penalty=pp.SLACK_PENALTY_RING8_FALLBACK)
-        print(_summary("AC+CBF+PE [M=1e5]", out_PE))
+    # v17.4 highway: h_min < 0 in conflicting-merge is the EXPECTED behavior
+    # (the safety filter partially absorbs but the constant-speed Dubins
+    # constraint with two cars at same x cannot fully avoid collision via
+    # steering alone). The Tikhonov soft-bound h ≥ -O(M^{-1/2}) is the right
+    # frame, as established in §VIII.
 
     # --- A_e Pareto sweep for figure 5 ---
     print("[A_e sweep] for figure 5:")
@@ -222,7 +249,8 @@ def main(quick: bool = False):
     print()
     print("Generating figures...")
     plots.figure_1_trajectories(out_AC, out_CBF, out_PE,
-                                 OUT / "figure_1_trajectories.pdf")
+                                 OUT / "figure_1_trajectories.pdf",
+                                 mode="rotation")    # ring8 rosette demo
     plots.figure_2_param_convergence(out_AC, out_CBF, out_PE,
                                       OUT / "figure_2_param_convergence.pdf")
     plots.figure_3_identifiability(out_PE, OUT / "figure_3_identifiability.pdf")

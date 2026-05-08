@@ -83,54 +83,92 @@ def _draw_oriented_triangle(ax, x, y, heading_rad, color, scale=0.25, alpha=1.0)
 # Figure 1 — cross-swap trajectories (oriented Dubins agents on curved paths)
 # ---------------------------------------------------------------------------
 
-def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path):
+def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path,
+                          mode: str = "highway"):
     """Three side-by-side panels showing curved Dubins trajectories under each
-    scenario. Agents rendered as oriented triangles (using arg(v_a)) at start
-    and end positions; trajectory lines show the curved Dubins path.
+    scenario. v17.4: highway-mode draws lane lines (solid edges + dashed
+    centreline) for autonomous-vehicle context (Pass 42 council).
     """
-    fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharex=True, sharey=True)
+    is_highway = mode == "highway"
+    if is_highway:
+        # Wide aspect for the road
+        fig, axes = plt.subplots(3, 1, figsize=(11, 7.5), sharex=True, sharey=True)
+    else:
+        fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharex=True, sharey=True)
     scenarios = [("AC", out_AC), ("AC+CBF", out_CBF), ("AC+CBF+PE", out_PE)]
 
     for ax, (name, out) in zip(axes, scenarios):
         r = out["r"]               # (T, N) complex
         v_a = out["v_a"]           # (T, N) complex
         N = r.shape[1]
+
+        if is_highway:
+            # Highway visual context (Pass 42 Frazzoli mod): solid lane edges,
+            # dashed lane centreline, road surface tinted grey.
+            x_min, x_max = -5.5, 5.5
+            ax.axhspan(-3.0, 3.0, color="#dddddd", alpha=0.4, zorder=0)
+            ax.axhline(0.0, color="white", linewidth=2.0, linestyle="--",
+                       dashes=(8, 8), alpha=0.9, zorder=1)
+            ax.axhline(-3.0, color="black", linewidth=1.2, zorder=1)
+            ax.axhline(+3.0, color="black", linewidth=1.2, zorder=1)
+            # Lane labels
+            ax.text(x_min + 0.2, -2.6, "right lane", fontsize=7,
+                    color="#444", zorder=2)
+            ax.text(x_min + 0.2, +2.6, "left lane", fontsize=7,
+                    color="#444", zorder=2, verticalalignment="top")
+
         for i in range(N):
             xs = r[:, i].real
             ys = r[:, i].imag
-            # Trajectory (curved Dubins path)
             ax.plot(xs, ys, color=AGENT_COLOURS[i],
-                    linewidth=1.2, alpha=0.85, label=f"agent {i}")
-            # Oriented triangle at start and end
+                    linewidth=1.4, alpha=0.85, label=f"car {i}" if is_highway else f"agent {i}",
+                    zorder=3)
             _draw_oriented_triangle(ax, xs[0], ys[0], np.angle(v_a[0, i]),
                                      color=AGENT_COLOURS[i], alpha=0.4)
             _draw_oriented_triangle(ax, xs[-1], ys[-1], np.angle(v_a[-1, i]),
                                      color=AGENT_COLOURS[i], alpha=0.95)
-            # r_safe circle at start position (faded; collision-avoidance bubble)
             theta = np.linspace(0, 2 * np.pi, 80)
             ax.plot(
                 xs[0] + pp.R_SAFE * np.cos(theta),
                 ys[0] + pp.R_SAFE * np.sin(theta),
-                color=AGENT_COLOURS[i], linewidth=0.4, alpha=0.4,
+                color=AGENT_COLOURS[i], linewidth=0.4, alpha=0.4, zorder=2,
             )
-        ax.set_aspect("equal")
-        ax.set_xlabel(r"$\Re(r_i)$ [m]")
+        if not is_highway:
+            ax.set_aspect("equal")
+        if (is_highway and ax is axes[-1]) or (not is_highway):
+            ax.set_xlabel(r"longitudinal $\Re(r_i)$ [m, dimensionless]" if is_highway
+                          else r"$\Re(r_i)$ [m]")
+        if (is_highway) or (name == "AC"):
+            ax.set_ylabel(r"lateral $\Im(r_i)$ [m]" if is_highway
+                          else r"$\Im(r_i)$ [m]")
         if name == "AC":
-            ax.set_ylabel(r"$\Im(r_i)$ [m]")
-            ax.legend(loc="lower left", fontsize=7)
+            ax.legend(loc="upper right" if is_highway else "lower left", fontsize=7,
+                      ncol=4 if is_highway else 1)
         h_min = float(out['h'].min())
-        ax.set_title(f"{name}    (min $h_{{ij}}$ = {h_min:.2f})")
-        ax.set_xlim(-3.6, 3.6)
-        ax.set_ylim(-3.6, 3.6)
+        ax.set_title(f"{name}    (min $h_{{ij}}$ = {h_min:.3f})", fontsize=10)
+        if is_highway:
+            x_min_seen = float(out["r"].real.min()) - 1.0
+            x_max_seen = float(out["r"].real.max()) + 1.0
+            ax.set_xlim(min(x_min_seen, -5.5), max(x_max_seen, 5.5))
+            ax.set_ylim(-3.2, 3.2)
+        else:
+            ax.set_xlim(-3.6, 3.6)
+            ax.set_ylim(-3.6, 3.6)
 
     N_demo = out_PE["r"].shape[1]
     n_pairs = N_demo * (N_demo - 1) // 2
-    fig.suptitle(
-        f"Figure 1 — v17.3 N={N_demo} continuous CCW rotation "
-        rf"(Sepulchre-Paley-Leonard phase-lock, {n_pairs} HOCBF pairs, "
-        rf"$D_8 \ltimes U(1)^8$ symmetry)",
-        fontsize=11, y=1.02,
-    )
+    if is_highway:
+        fig.suptitle(
+            f"Figure 1 — v17.4 N={N_demo}-car highway lane-change "
+            f"({n_pairs} HOCBF pairs, $K_{{{N_demo}}}$ communication)",
+            fontsize=11, y=0.995,
+        )
+    else:
+        fig.suptitle(
+            f"Figure 1 — v17.3 N={N_demo} continuous CCW rotation "
+            rf"(Sepulchre-Paley-Leonard phase-lock, {n_pairs} HOCBF pairs)",
+            fontsize=11, y=1.02,
+        )
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
@@ -149,8 +187,16 @@ def figure_2_param_convergence(out_AC: dict, out_CBF: dict, out_PE: dict, save: 
     the §VIII Lyapunov reduction empirically.
     """
     N = out_AC["theta_hat"].shape[1]
-    inv_L = 1.0 / pp.LAMBDA_TRUE[:N] if pp.LAMBDA_TRUE.shape[0] >= N else \
-            np.tile(1.0 / pp.LAMBDA_TRUE, (N // pp.LAMBDA_TRUE.shape[0] + 1))[:N]
+    # Prefer the true lambda attached to the sim output (v17.4); fall back to
+    # the global pp.LAMBDA_TRUE if not present (back-compat for older sims).
+    if "lambda_true" in out_AC:
+        lambda_true = out_AC["lambda_true"]
+        if lambda_true.shape[0] < N:
+            lambda_true = np.tile(lambda_true, (N // lambda_true.shape[0] + 1))[:N]
+        inv_L = 1.0 / lambda_true[:N]
+    else:
+        inv_L = 1.0 / pp.LAMBDA_TRUE[:N] if pp.LAMBDA_TRUE.shape[0] >= N else \
+                np.tile(1.0 / pp.LAMBDA_TRUE, (N // pp.LAMBDA_TRUE.shape[0] + 1))[:N]
 
     if N <= 4:
         nrows, ncols = 1, N
@@ -305,9 +351,15 @@ def figure_5_ae_sweep(sweep_results: list, save: Path):
     v17: ultimate-bound proxy is mean |r - r_ref|^2 (complex tracking error).
     """
     A_e_vals = np.array([s[0] for s in sweep_results])
-    inv_L = 1.0 / pp.LAMBDA_TRUE
+    # v17.4: use N from sim output (highway is N=4, ring8 was N=8); use
+    # attached lambda_true if present, else fall back to pp.LAMBDA_TRUE[:N].
+    N = sweep_results[0][1]["theta_hat"].shape[1]
+    if "lambda_true" in sweep_results[0][1]:
+        inv_L = 1.0 / sweep_results[0][1]["lambda_true"][:N]
+    else:
+        inv_L = 1.0 / pp.LAMBDA_TRUE[:N]
 
-    rates = np.zeros((len(A_e_vals), pp.LAMBDA_TRUE.shape[0]))
+    rates = np.zeros((len(A_e_vals), N))
     bounds = np.zeros_like(rates)
     for k, (A_e, out) in enumerate(sweep_results):
         T = out["t"][-1]

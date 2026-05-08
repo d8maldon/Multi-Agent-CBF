@@ -349,6 +349,47 @@ ALSO added: target-velocity feedforward `t_targets_dot` (numerical finite differ
 
 **Status of prior pass commitments:** Pass 40: HONOURED (all 6 fixes applied + bonus integrator bugfix). Pass 38 sign-off: SUPERSEDED — the Pass 38 §VIII text was about the antipodal-swap demo which is no longer the v17.3 headline; v17.3 §VIII has been rewritten for the rotating-ring demo with the new (better) numbers.
 
+---
+
+## Pass 42 - 2026-05-07 - cross-council pre-code review of HIGHWAY pivot (user request: "more realistic for cars")
+
+**Audited:** Proposed §VIII demo geometry change from N=8 rotating-ring rosette to a 4-car 2-lane highway lane-change scenario. Plant + theorem + 6 lemmas + Lyapunov UNCHANGED; only target function + figure visual + §VIII narrative.
+
+**Three sub-passes (all APPROVED):**
+
+**42a math-god-mode** (Ames + Frazzoli + Egerstedt): **APPROVED with 2 mods** — phase-offset the two swap pairs (Egerstedt: avoid synchronous-midpoint crossing); cosine-based target so $\dot y(0) = 0$ (Egerstedt: smooth start).
+
+**42b OG** (Klein + Cartan + Filippov): **SOUND** — drop Sepulchre-Paley-Leonard cite (highway is not phase-lock), use Dubins 1957 + v17.1 cross-swap chain. Note Noether-current downgrade ($SO(2) \to \mathbb{Z}/2 \times \mathbb{R}$). One-sentence Cartan stratified-bundle remark optional.
+
+**42c controls** (Borrelli + Falcone + Frazzoli): **PIVOT-APPROVED with 2 majors + 1 minor** — r_safe normalisation disclosure (r_safe/L_lane = 0.27); AV citations (Falcone-Borrelli 2007, Rajamani 2012, Paden-Frazzoli 2016) replacing aerospace authorities; non-dimensional disclosure block.
+
+**Sign-off conditions:** apply 6 mods + 2 OG citation updates. All three skills commit to Pass 43 plot review after implementation.
+
+---
+
+## Pass 43 - 2026-05-07 - cross-council ROLLBACK verdict on highway plots (after 5 implementation iterations)
+
+**Audited:** iter15 highway figure (`/tmp/figs_review/iter15_fig1-1.png`) + comparison to iter8 rotating-ring (Pass 41 APPROVED). Empirical h_min results across the 5 highway iterations:
+- iter11 chord oscillation: chaotic
+- iter12 K_F=8 advance: AC=-0.16, AC+CBF=-0.16 (filter no help)
+- iter13 single merge: too easy (AC = AC+CBF, both safe)
+- iter14 conflicting merge K_F=8: AC=-0.118, AC+CBF=-0.039 (filter helps 3x BUT chaotic visual)
+- iter15 conflicting merge K_F=0.3: AC=-0.022, AC+CBF=-0.059 (FILTER WORSENS H_MIN)
+
+**Three sub-passes (UNANIMOUS verdict B = ROLLBACK):**
+
+**43a math-god-mode** (Tao + Ames + Krstić lens): **B**. Constant-speed Dubins at coincident-x conflicting-swap is *relative-degree-degenerate* — $L_g L_f h$ vanishes along the swap midline. No Tikhonov-slack disclosure rescues this; the QP is structurally infeasible, not numerically soft.
+
+**43b OG** (Nagumo + Filippov + Tikhonov lens): **B**. Nagumo's condition fails on a *positive-measure set* here, not at an isolated point — that is not a "soft-bounded slack." Honest classical framing: constant-speed kinematics + symmetric coincident swap = no admissible safe set, full stop.
+
+**43c controls** (Ames + Egerstedt + Tomlin lens): **B with note**. CBF making h_min *worse* than AC (-0.022 → -0.059) and deflecting non-conflicting background cars is the kind of plot a reviewer screenshots. Option A (disclosure) is unshippable. If a highway scenario is truly desired later, the minimum fix is *speed-actuated* Dubins (drop constant-V), not another geometry tweak.
+
+**CONSOLIDATED VERDICT: B — ROLLBACK to v17.3 rotating-ring (Pass 41 APPROVED).** Add a one-paragraph "Why not a highway scenario?" remark in §VIII noting the Nagumo-degenerate constant-speed coincident-swap as motivation for the rotating-ring choice. Do NOT write a Tikhonov-slack disclosure for the highway — it would misrepresent a structural failure as a numerical one.
+
+**Sign-off conditions:** revert make_figures.py main() to use ring8_run; restore K_F=8; preserve the integrator bugfix and target-velocity feedforward (those are improvements regardless); add §VIII "Why not highway?" remark; keep `highway_run_legacy` + `HIGHWAY_R0`/`HIGHWAY_EDGES` etc. in code as inert reference for future speed-actuated work.
+
+**Status of prior pass commitments:** Pass 41 (rotating-ring APPROVED): RESTORED. Pass 42 (highway pivot APPROVED): SUPERSEDED by Pass 43 (the pre-code analytical review missed the structural Nagumo degeneracy that only became visible empirically; legitimate CONFLICT-WITH-PRIOR-SIGNOFF).
+
 **Status of prior pass commitments:**
 - Pass 31 commitment "PENDING CROSS-SKILL CONSENSUS": HONOURED via Pass 32 + Pass 33; modifications agreed.
 - Pass 32 commitment "PENDING CONTROLS-EXPERT VERIFICATION": HONOURED here.
