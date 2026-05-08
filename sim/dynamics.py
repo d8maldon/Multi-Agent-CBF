@@ -25,12 +25,14 @@ def neighbours(i: int, edges: tuple) -> list:
     return [b if a == i else a for (a, b) in edges if i in (a, b)]
 
 
-def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple) -> np.ndarray:
-    """[§2.3 v17]: reference complex velocity command as a function of (z, t).
+def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple,
+                       t_targets_dot: np.ndarray = None) -> np.ndarray:
+    """[§2.3 v17.3]: reference complex velocity command as a function of (z, t).
 
-    Lifted from v16's real-vector formation feedback to complex state. Returns
-    the desired *complex velocity* (NOT a turn-rate yet — that conversion
-    happens in `reference_turn_rate` below).
+    v17.3 adds an optional feedforward term `t_targets_dot` (the target's
+    instantaneous velocity) so that the reference dynamics can track moving
+    formations exactly when the kinematic constraint $V_0 \\ge \\sup_t |\\dot
+    t_i|$ is honoured (Carathéodory 1909 reachability).
 
     The formation feedback acts via the **Kirchhoff Laplacian** L_G (Kirchhoff
     1847) of the communication graph, encoded here through the per-agent
@@ -46,6 +48,10 @@ def reference_velocity(z: np.ndarray, t_targets: np.ndarray, edges: tuple) -> np
         v_des[i] = -pp.K_T * (z[i] - t_targets[i])
         for j in neighbours(i, edges):
             v_des[i] -= pp.K_F * ((z[i] - z[j]) - (t_targets[i] - t_targets[j]))
+    # Feedforward: add target velocity so steady-state error is zero for
+    # moving formations (Pomet-Praly-style velocity feedforward; v17.3).
+    if t_targets_dot is not None:
+        v_des = v_des + t_targets_dot
     # Cap magnitude at V_0 to respect constant-speed simplification
     norms = np.abs(v_des)
     norms = np.where(norms > pp.V_0, norms, pp.V_0)

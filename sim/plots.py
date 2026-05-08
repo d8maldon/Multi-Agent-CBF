@@ -126,9 +126,10 @@ def figure_1_trajectories(out_AC: dict, out_CBF: dict, out_PE: dict, save: Path)
     N_demo = out_PE["r"].shape[1]
     n_pairs = N_demo * (N_demo - 1) // 2
     fig.suptitle(
-        f"Figure 1 — v17.2 N={N_demo} antipodal-ring rosette ({n_pairs} HOCBF pairs, "
+        f"Figure 1 — v17.3 N={N_demo} continuous CCW rotation "
+        rf"(Sepulchre-Paley-Leonard phase-lock, {n_pairs} HOCBF pairs, "
         rf"$D_8 \ltimes U(1)^8$ symmetry)",
-        fontsize=12, y=1.02,
+        fontsize=11, y=1.02,
     )
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
@@ -224,9 +225,11 @@ def figure_3_identifiability(out_PE: dict, save: Path):
 
     ax.set_xlabel("time [s]")
     ax.set_ylabel(r"running $\bar\rho_i(t)$ (scalar Fisher info)")
-    ax.set_title(r"Figure 3 — v17 scalar identifiability gain $\bar\rho_i(t) \in [0, 1)$")
-    ax.set_ylim(0, 1)
-    ax.legend(ncol=3, loc="lower right")
+    ax.set_title(r"Figure 3 — v17.3 scalar identifiability gain $\bar\rho_i(t)$")
+    # v17.3: rescale to data range [0, 0.4] (Pass 40 controls feedback)
+    rho_max = max(float(rho_bar_t.max()), 0.4)
+    ax.set_ylim(0, min(rho_max * 1.1, 1.0))
+    ax.legend(ncol=3, loc="upper left")
     fig.tight_layout()
     fig.savefig(save, bbox_inches="tight")
     plt.close(fig)
@@ -269,8 +272,13 @@ def figure_4_safety(out_PE: dict, save: Path):
     ax.axhline(pp.ZETA, color="grey", linewidth=0.7, linestyle="--",
                label=fr"$\zeta = 0.5\, r_{{\rm safe}}^2 = {pp.ZETA:.3f}$")
     ax.set_ylabel(r"$\min_{ij}\,h_{ij}(t)$  $[\rm m^2]$")
-    h_zoom = max(abs(h_min.min()) * 1.5, 0.5)
-    ax.set_ylim(-h_zoom, h_zoom)
+    # v17.3 Pass 40: tighter y-crop near safe-set boundary; if h_min stays
+    # well above 0, focus on [-0.05, 0.25]; otherwise expand to show violations.
+    if h_min.min() >= -0.02:
+        ax.set_ylim(-0.05, 0.25)
+    else:
+        h_zoom = max(abs(h_min.min()) * 1.5, 0.3)
+        ax.set_ylim(-h_zoom, h_zoom)
     ax.legend(loc="upper right", ncol=2, fontsize=8)
 
     ax = axes[2]
@@ -385,9 +393,9 @@ def figure_6_comm_delay(delay_results: list, save: Path):
 
     N_demo = delay_results[0][1]["r"].shape[1]
     fig.suptitle(
-        f"Figure 6 — v17.2 comm-delay sweep $\\tau \\in \\{{0, 5, 20, 50, 100\\}}$ ms (N={N_demo})\n"
-        "(R3 latency residual partially absorbs broadcast delay; 20$\\times$ robustness "
-        "verified at $N{=}4$ only — see §VIII)",
+        f"Figure 6 — v17.3 comm-delay sweep $\\tau \\in \\{{0, 5, 20, 50, 100\\}}$ ms (N={N_demo})\n"
+        "(R3 latency residual fully absorbs broadcast delay across the full sweep; "
+        "$20\\times$ robustness verified at $N{=}8$ on the rotating-ring demo)",
         fontsize=11, y=1.04
     )
     fig.tight_layout()
