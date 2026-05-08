@@ -28,12 +28,15 @@ OUT_GIF.mkdir(parents=True, exist_ok=True)
 
 def diamond_run(A_e: float, T_final: float, log_every: int,
                 use_safety_filter: bool = True) -> dict:
-    """One 4-vehicle diamond-rendezvous run with central obstacle."""
+    """One 4-vehicle diamond-rendezvous run with central obstacle. Uses
+    rotating diamond targets (Option A from Pass 49 council; constant-speed
+    Dubins admits a steady-state rotating relative-equilibrium but no
+    static-point rendezvous)."""
     return integrator.run(
-        r0=pp.DIAMOND_R0.copy(), v_a0=pp.diamond_v0(),
-        r_ref0=pp.DIAMOND_R0.copy(), v_ref0=pp.diamond_v0(),
+        r0=pp.DIAMOND_R0.copy(), v_a0=pp.diamond_v0_aligned(),
+        r_ref0=pp.DIAMOND_R0.copy(), v_ref0=pp.diamond_v0_aligned(),
         edges=pp.DIAMOND_EDGES,
-        t_targets_fn=pp.diamond_targets_static,
+        t_targets_fn=pp.diamond_targets_rotating,
         A_e=A_e,
         T_final=T_final,
         log_every=log_every,
@@ -62,19 +65,24 @@ def _draw_obstacles(ax, alpha=0.6):
         ax.add_patch(circ)
 
 
-def _draw_diamond_targets(ax):
-    """Draw target diamond vertices as stars and the diamond outline (faint)."""
-    pts = pp.DIAMOND_TARGETS
-    # Diamond outline (faint) connecting the 4 target vertices CW
-    xs = list(pts.real) + [pts[0].real]
-    ys = list(pts.imag) + [pts[0].imag]
-    ax.plot(xs, ys, color="#aaa", linewidth=0.8, linestyle="--",
-            alpha=0.6, zorder=2)
-    # Target stars (one per vehicle, colour-matched)
+def _draw_diamond_reference(ax):
+    """Draw the rotating-diamond reference orbit as a faint circle of
+    radius DIAMOND_RADIUS (the diamond vertices trace this circle as
+    they rotate)."""
+    theta = np.linspace(0, 2 * np.pi, 80)
+    ax.plot(pp.DIAMOND_RADIUS * np.cos(theta),
+            pp.DIAMOND_RADIUS * np.sin(theta),
+            color="#bbb", linewidth=0.7, linestyle="--", alpha=0.6, zorder=2)
+
+
+def _draw_diamond_target_now(ax, t_now: float):
+    """Draw the current rotating-diamond target positions at time t_now
+    as colored stars."""
+    pts = pp.diamond_targets_rotating(t_now)
     for i, t_target in enumerate(pts):
         ax.plot(t_target.real, t_target.imag, "*",
-                color=sim_plots.AGENT_COLOURS[i], markersize=14,
-                alpha=0.55, markeredgecolor="black", markeredgewidth=0.8,
+                color=sim_plots.AGENT_COLOURS[i], markersize=12,
+                alpha=0.55, markeredgecolor="black", markeredgewidth=0.7,
                 zorder=4)
 
 
@@ -91,7 +99,9 @@ def make_diamond_figure(out_AC, out_CBF, out_PE, save_path: Path):
         N = r.shape[1]
 
         _draw_obstacles(ax)
-        _draw_diamond_targets(ax)
+        _draw_diamond_reference(ax)
+        # Draw current target positions at the END of the simulation
+        _draw_diamond_target_now(ax, float(out["t"][-1]))
 
         for i in range(N):
             xs = r[:, i].real
@@ -182,7 +192,15 @@ def make_diamond_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                                      gridspec_kw={"height_ratios": [4, 1]})
 
     _draw_obstacles(ax)
-    _draw_diamond_targets(ax)
+    _draw_diamond_reference(ax)
+    # Animated current targets need a re-draw each frame; for the static
+    # axes we only draw the diamond reference circle here.
+    target_markers = []
+    for i in range(N):
+        m, = ax.plot([], [], "*", color=sim_plots.AGENT_COLOURS[i],
+                     markersize=12, alpha=0.55, markeredgecolor="black",
+                     markeredgewidth=0.7, zorder=4)
+        target_markers.append(m)
     ax.set_xlim(-6.5, 6.5)
     ax.set_ylim(-6.5, 6.5)
     ax.set_aspect("equal")
@@ -228,6 +246,8 @@ def make_diamond_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
     def animate(frame_idx):
         idx = frame_indices[frame_idx]
         t_now = t[idx]
+        # Update rotating-diamond target markers
+        target_pts = pp.diamond_targets_rotating(float(t_now))
         for i in range(N):
             xs = r[:idx + 1, i].real
             ys = r[:idx + 1, i].imag
@@ -237,6 +257,8 @@ def make_diamond_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].real + pp.R_SAFE * cos_th,
                 r[idx, i].imag + pp.R_SAFE * sin_th,
             )
+            target_markers[i].set_data([target_pts[i].real],
+                                        [target_pts[i].imag])
         h_dot.set_data([t_now], [h_combined[idx]])
         nonlocal h_safe_fill, h_unsafe_fill
         for coll in [h_safe_fill, h_unsafe_fill]:
@@ -251,7 +273,7 @@ def make_diamond_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
             sub_t, sub_h, 0.0, where=(sub_h < 0), color="#d62728",
             alpha=0.5, interpolate=True,
         )
-        return trails + bodies + safety_circles + [h_dot, h_safe_fill, h_unsafe_fill]
+        return trails + bodies + safety_circles + target_markers + [h_dot, h_safe_fill, h_unsafe_fill]
 
     anim = animation.FuncAnimation(
         fig, animate, frames=n_frames, interval=1000 / fps, blit=False,
