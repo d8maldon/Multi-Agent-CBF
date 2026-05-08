@@ -16,15 +16,13 @@ import numpy as np
 
 # Reference-feedback / adaptive gains
 K_T = 4.0           # tracking gain                                   [§8.3]
-# K_F: original v17.1 cross-swap value 0.3 (loose formation, agents on
-# straight diagonals); v17.3 N=8 ring rotation requires stronger formation
-# coupling because the per-agent LOE heterogeneity (lambda_i in [0.55, 0.9])
-# causes radial drift on the rotating ring. Pass 38 controls Pareto check
-# showed K_F=4 keeps the formation tight on the rotating ring (radii spread
-# < 2m, h_min > 0). The §VII proof works at K_F = 0.3 (Lyapunov needs only
-# K_F·lambda_2(L_G) > 0, satisfied).
-K_F = 8.0           # formation-coupling gain (v17.3 ring-rotation tuning;
-                    # K_F sweep showed h_min=+0.093, radial spread 2.08m at K_F=8)
+# K_F: v17.1 cross-swap baseline 0.3; ring rotation needed K_F=8 to combat
+# LOE-heterogeneity-induced radial drift. Pass 43 council verdict: the
+# rotating-ring rosette is the canonical demo (Pass 41 APPROVED); the
+# highway pivot (Pass 42-43) was reverted because constant-speed Dubins
+# at coincident-x conflicting-swap is Nagumo-degenerate (relative-degree
+# drop on positive-measure set, not isolated). Restore K_F=8 for the ring.
+K_F = 8.0           # formation-coupling gain (v17.3 ring-rotation tuning)
 GAMMA = 0.15        # adaptive-law gain (rate of theta_hat update)    [§8.3]
 
 # HOCBF class-K gains [§3.1: ddot h + (alpha_1 + alpha_2) dot h + alpha_1 alpha_2 h >= 0]
@@ -211,6 +209,86 @@ def ring8_targets_antipodal_oscillating(t: float) -> np.ndarray:
     return RING8_R0 + s * (RING8_ANTIPODAL - RING8_R0)
 
 
+# ---------------------------------------------------------------------------
+# §VIII v17.4 highway lane-change demo (Pass 42 council consensus)
+# ---------------------------------------------------------------------------
+# Replaces the rotating-ring rosette with a CAR / ROAD scenario:
+# - 4 cars on a 2-lane straight highway
+# - All cars at constant speed V_0 = 1 m/s (kinematic-bicycle Dubins
+#   abstraction; cf. Rajamani 2012 §2, Falcone-Borrelli 2007)
+# - Lane lines at y = +/- L_LANE (lane width 2*L_LANE = 3 m, dimensionless)
+# - Cars 0, 1 in right lane; cars 2, 3 in left lane
+# - Cross-swap targets: cars 0,1 -> left lane; cars 2,3 -> right lane
+# - Phase-offset between pairs (0,2) and (1,3) avoids synchronous midpoint
+#   crossing (council Pass 42 Egerstedt mod)
+# - Heterogeneous LOE: lambda_i in [0.55, 0.9] per car (steering authority)
+# - K_4 communication graph (all 4 cars exchange state)
+#
+# DIMENSIONLESS NORMALISATION (council Pass 42 Borrelli/Falcone disclosure):
+# Length scaled to lane width L = 1.5 m; time to T_LANE = 8 s. Physical
+# highway corresponds to V_0 ~ 30 m/s, r_safe ~ 5 m, lane width 3.5 m. The
+# r_safe / L = 0.4 / 1.5 = 0.27 ratio represents a point-mass-surrogate bubble
+# around each car — appropriate for a kinematic-level demo, not a full
+# vehicle-dynamics model.
+
+L_LANE = 1.5    # half-lane width [dimensionless; physical lane = 2*L_LANE]
+N_HIGHWAY = 4
+T_LANE = 8.0    # [s] one cosine-shaped lane-change cycle
+
+# Conflicting-merge scenario: cars 0 and 1 are at the SAME longitudinal
+# position but in opposite lanes; both want to swap to the other lane,
+# producing a head-on lateral conflict at the lane midline (y=0). The safety
+# filter must defer one car's merge until the other clears. Cars 2 and 3
+# are background traffic ahead, providing a richer K_4 graph.
+HIGHWAY_R0 = np.array([
+    -1.5 - L_LANE * 1j,    # car 0: right lane, wants to merge LEFT
+    -1.5 + L_LANE * 1j,    # car 1: left lane (directly above car 0!), wants to merge RIGHT
+     3.0 - L_LANE * 1j,    # car 2: right lane, ahead (background traffic)
+     3.0 + L_LANE * 1j,    # car 3: left lane, ahead (background traffic)
+], dtype=complex)
+
+# Initial heading: all cars going +x along the road
+def highway_v0() -> np.ndarray:
+    """Initial v_{a,i}(0) = V_0 along +x for each car (highway driving)."""
+    return V_0 * np.ones(N_HIGHWAY, dtype=complex)
+
+HIGHWAY_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
+
+V_HIGHWAY = 0.8 * V_0    # longitudinal target speed (target advances east at this rate)
+
+def highway_targets_oscillating(t: float) -> np.ndarray:
+    """[§VIII v17.4 highway conflicting-merge]: cars 0 and 1 swap lanes
+    simultaneously at the same x; cars 2 and 3 drive east as background.
+    Returns (4,) complex.
+
+    Geometry: conflicting lane-swap benchmark (analog of v17.1 cross-swap
+    constrained to a 2-lane highway). Car 0 (right lane) wants left lane;
+    car 1 (left lane, directly above car 0) wants right lane. Without the
+    safety filter both cars cross y=0 at the same (x,y), collision. With
+    the filter, one car defers via the HOCBF QP-resolvent.
+
+    Cosine-based smoothing s(t) = 0.5*(1 - cos(2*pi*t/T_LANE)) gives zero
+    lateral velocity at t=0 (Pass 42 Egerstedt mod). Longitudinal advance
+    V_HIGHWAY * t keeps targets Dubins-reachable (Carathéodory 1909).
+    """
+    s_swap = 0.5 * (1.0 - np.cos(2.0 * np.pi * t / T_LANE))
+    x_advance = V_HIGHWAY * t
+    targets = np.zeros(N_HIGHWAY, dtype=complex)
+    # Car 0 (started right lane): swap to LEFT — y goes from -L_LANE to +L_LANE
+    targets[0] = (HIGHWAY_R0[0].real + x_advance) + 1j * (-L_LANE + 2.0 * L_LANE * s_swap)
+    # Car 1 (started left lane, above car 0): swap to RIGHT
+    targets[1] = (HIGHWAY_R0[1].real + x_advance) + 1j * (+L_LANE - 2.0 * L_LANE * s_swap)
+    # Cars 2, 3: drive east in their lanes (no swap)
+    targets[2] = (HIGHWAY_R0[2].real + x_advance) + 1j * (-L_LANE)
+    targets[3] = (HIGHWAY_R0[3].real + x_advance) + 1j * (+L_LANE)
+    return targets
+
+
+# Numerical scheme overrides for highway demo (same as cross-swap baseline)
+H_OUTER_HIGHWAY = 5e-3            # 5 ms outer step (cross-swap baseline)
+SLACK_PENALTY_HIGHWAY = 1e4       # M = 10^4 baseline
+
+
 def check_ring8_reachability(T_swap: float = T_SWAP_RING8) -> dict:
     """One-way antipodal Dubins-reachability check (Carathéodory 1909).
 
@@ -239,6 +317,17 @@ def check_ring8_reachability(T_swap: float = T_SWAP_RING8) -> dict:
 # rosette demo (Tikhonov margin K_T·Λ_min·H_OUTER = 0.024 ≪ 1, separation
 # factor 42×). Slack penalty also scales by sqrt(N(N-1)/2) ≈ 5.3, so bump
 # M = 10^4 → 5·10^4 (Bertsekas 1999 §5.4 exact-penalty threshold).
+# Pass 41 user feedback (v17.4): the heterogeneous LAMBDA_TRUE
+# (lambda in [0.55, 0.9]) caused visible radial drift on the rotating ring
+# even with K_F = 8. For the §VIII trajectory headline figure we use
+# HOMOGENEOUS lambda = 0.7 so all 8 agents have identical kinematic
+# capability — they phase-lock cleanly on the radius-R circle (Sepulchre-
+# Paley-Leonard 2007 setup). LOE heterogeneity is still demonstrated:
+# (i) §VII §VII.2 proof-bearing N=4 cross-swap uses LAMBDA_TRUE[:4] (heterog),
+# (ii) parameter-convergence figure 2 uses heterogeneous initial theta_hat
+# per-agent (PE phases differ per agent, breaking the symmetry).
+RING8_LAMBDA = 0.7 * np.ones(N_RING8)
+
 H_OUTER_RING8 = 1e-2          # 10 ms outer step for N=8 demo (vs 5 ms baseline)
 # Pass 37 Ames gate: empirically h_min < 0 at M = 5e4 in some scenarios
 # (AC+CBF baseline, A_e=0.05, tau=5 ms) — sqrt(28) slack aggregation dominates
