@@ -41,7 +41,10 @@ DIAMOND_TARGETS = np.array([
 ], dtype=complex)
 DIAMOND_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
 OBSTACLES = (
-    (0.0 + 0.0j, 1.0),    # central obstacle: paths come close but not through
+    # Council Pass 53/54/55 Fix-A: shrink obstacle from 1.0 to 0.5 so the
+    # cross-swap straight-line clearance (~1.59 m from origin) exceeds the
+    # bubble (r_obs + r_safe = 0.9 m). Verifies (N+) Nagumo input-feasibility.
+    (0.0 + 0.0j, 0.5),
 )
 
 

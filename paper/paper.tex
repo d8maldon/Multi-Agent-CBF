@@ -1,4 +1,4 @@
-% IEEE-LCSS submission: PE-aware Distributed Adaptive HOCBF on Complex Dubins Vehicles
+% IEEE-LCSS submission: PE-aware Distributed Adaptive HOCBF on Bounded-Acceleration Vehicles
 % Compile:  pdflatex paper.tex && bibtex paper && pdflatex paper.tex && pdflatex paper.tex
 \documentclass[letterpaper,10pt,conference]{IEEEtran}
 
@@ -27,11 +27,12 @@
 \newcommand{\psidotmax}{\dot\psi_{\max}}
 \newcommand{\thethat}{\hat\theta}
 \newcommand{\rhobar}{\bar\rho}
-\newcommand{\Re}{\mathrm{Re}}
-\newcommand{\Im}{\mathrm{Im}}
+\renewcommand{\Re}{\mathrm{Re}}
+\renewcommand{\Im}{\mathrm{Im}}
+\newtheorem{theorem}{Theorem}
 
 \title{Excitation-Preserving Distributed Safety Filter for Multi-Agent\\
-       Adaptive Control on Complex Dubins Vehicles}
+       Adaptive Control with Loss-of-Effectiveness on Bounded-Acceleration Vehicles}
 
 \author{\IEEEauthorblockN{D. Maldonado-Naranjo}
 \IEEEauthorblockA{(institutional affiliation TBD)}}
@@ -40,208 +41,167 @@
 \maketitle
 
 \begin{abstract}
-For a network of $N$ complex-Dubins agents with unknown loss-of-effectiveness (LOE) on the turn-rate channel $\lambda_i$, we identify the convergence rate of the parameter estimate $\thethat_i \to 1/\lambda_i$ under a distributed higher-order CBF (HOCBF) safety filter as the constrained scalar Fisher information of $1/\lambda_i$ on the binary freedom cone $F_i \in \{\{0\}, \R\}$---equivalently, the inverse of the corresponding scalar Cram\'er--Rao bound. The complex-Dubins setting introduces (i)~relative-degree-2 safety constraints requiring the second-order Aubin--Cellina tangent cone, (ii)~a relative-degree-drop locus $D_{ij}$ where Filippov regularisation gives sliding-mode evolution, and (iii)~a quantitative recoverability margin $\eta_a > 0$ guaranteeing forward invariance under saturation. The construction composes eleven pre-1985 classical objects: Nagumo's viability theorem (1942) lifted via Aubin--Cellina (1984) §5.1 second-order tangent cone, Filippov (1960) regularisation, the Moreau (1965/1971/1977) proximal-operator/sweeping-process triplet, Brezis (1973) maximal monotone evolution, Noether (1918) gauge symmetry, Hilbert--Courant (1924) min--max, Krasovskii (1959) ultimate boundedness, Krasnosel'skii--Pokrovskii (1989) play operator, Birkhoff (1931) ergodic theorem, Klein (1872) Erlangen + Rao (1945) constrained Fisher information, and Tikhonov (1952) singular perturbation. The OSQP scalar QP at $h_{\text{outer}} = 5$\,ms is real-time feasible up to $N \approx 4$ on a desktop CPU and at $h_{\text{outer}} = 10$\,ms up to $N=8$ ($p_{99}=3.89$\,ms serial, $38.9\%$ utilisation). Communication-delay robustness scales as $5\,\text{ms} \to 100\,\text{ms}$ with $h_{ij}\ge 0$ preserved, verified at both $N=4$ (cross-swap) and $N=8$ (rotating-ring rosette), due to the analytical R3 latency residual in the CBF tightening $\delta_{ij}(t)$.
+For a network of $N$ planar vehicles with bounded complex acceleration and unknown scalar loss-of-effectiveness (LOE) gain $\lambda_i \in [\lambda_{\min}, 1]$, we identify the convergence rate of the parameter estimate $\thethat_i \to 1/\lambda_i$ under a distributed higher-order CBF (HOCBF) safety filter as the constrained scalar Fisher information of $1/\lambda_i$ on the binary freedom cone---equivalently, the inverse of the corresponding scalar Cram\'er--Rao bound. The plant is the Pontryagin (1962) bounded-acceleration double-integrator on $\mathbb{C}^2$, $\dot r_i = v_i$, $\dot v_i = \lambda_i u_i$ with $u_i \in \mathbb{C}$, $|u_i| \le u_{\max}$. Compared to the constant-speed Dubins simplification of \cite{maldonadoAnnaswamy2025}, this extension (i)~admits $v_i = 0$ as a regular equilibrium, enabling static rendezvous formations, (ii)~has full-rank HOCBF input matrix $L_g h = 2\lambda_i(r_i - r_j)$ with no head-on relative-degree drop, and (iii)~preserves the scalar Cram\'er--Rao identifiability machinery via the linear-in-parameter regression. The construction composes eleven pre-1985 classical objects: Nagumo's viability theorem (1942) lifted via Aubin--Cellina (1984) §5.1 second-order tangent cone, Filippov (1960) regularisation for the soft-constrained QP, the Moreau (1965/1971/1977) proximal-operator/sweeping-process triplet, Brezis (1973) maximal monotone evolution, Noether (1918) gauge symmetry, Hilbert--Courant (1924) min--max on the Kirchhoff (1847) Laplacian, Krasovskii (1959) ultimate boundedness, Krasnosel'skii--Pokrovskii (1989) play operator, Birkhoff (1931) ergodic theorem, Rao (1945) constrained Fisher information, and Tikhonov (1952) singular perturbation. We demonstrate via a 4-vehicle diamond rendezvous around a central obstacle: vehicles depart from outer-square corners and converge with zero velocity to a static diamond formation, with the HOCBF safety filter providing collision avoidance while the adaptive law identifies $\thethat_i \to 1/\lambda_i$ under persistent excitation.
 \end{abstract}
 
-\section{Problem statement}
-A team of $N$ complex-Dubins agents must reach a target formation $\{t_i\}_{i=1}^N \subset \C$ while (i)~maintaining pairwise safety $|r_i - r_j| \ge \rsafe$, (ii)~identifying each agent's unknown LOE gain $\lambda_i \in [\lammin, 1]$ on the turn-rate channel, and (iii)~using only neighbour-broadcast information $\{r_j, v_{a,j}, \thethat_j, u_{2,j}^{\text{safe}}(t^-)\}$ from a connected communication graph $\mathcal{G}$. We extend the single-agent adaptive-Dubins formulation of Maldonado-Naranjo--Annaswamy (2025)~\cite{maldonadoAnnaswamy2025} to the multi-agent setting with HOCBF safety constraints (Xiao--Belta 2021)~\cite{xiaoBelta2021} and prove the convergence rate of $\thethat_i$ as the constrained Cram\'er--Rao bound on the binary freedom cone (Rao 1945~\cite{rao1945}, Whitney 1965 stratification~\cite{whitney1965}, Amari 1985 information geometry~\cite{amari1985}).
+\section{Problem statement}\label{sec:problem}
+A team of $N$ planar vehicles with bounded complex acceleration must reach a target formation $\{t_i\}_{i=1}^N \subset \C$ while (i)~maintaining pairwise safety $|r_i - r_j| \ge \rsafe$ and avoiding any static circular obstacles in the field, (ii)~identifying each agent's unknown scalar LOE gain $\lambda_i \in [\lammin, 1]$ on the acceleration channel, and (iii)~using only neighbour-broadcast information $\{r_j, v_j, \thethat_j, u_j^{\text{safe}}(t^-)\}$ from a connected communication graph $\mathcal{G}$. We extend the single-agent adaptive-Dubins formulation of Maldonado-Naranjo--Annaswamy (2025)~\cite{maldonadoAnnaswamy2025} to the multi-agent bounded-acceleration setting with HOCBF safety constraints (Ames-Xu-Grizzle 2014~\cite{amesXuGrizzle2014}; Xiao--Belta 2021)~\cite{xiaoBelta2021} and prove the convergence rate of $\thethat_i$ as the constrained Cram\'er--Rao bound on the binary freedom cone (Rao 1945~\cite{rao1945}, Whitney 1965 stratification~\cite{whitney1965}, Amari 1985 information geometry~\cite{amari1985}).
 
 \section{Construction}
 
-\subsection{Plant, reference, adaptive law, Kalman--Bucy auxiliary}
-For agent $i \in \{1, \ldots, N\}$ with state $(r_i, v_{a,i}) \in \C^2$, position $r_i = x_i + i y_i$, velocity-along-heading $v_{a,i} = V_0 e^{i\psi_i}$ at constant speed $V_0$:
+\subsection{Plant, reference, adaptive law}\label{sec:plant}
+For agent $i \in \{1, \ldots, N\}$ with state $(r_i, v_i) \in \mathbb{C}^2$ (position $r_i = x_i + i y_i$ and complex velocity $v_i$):
 \begin{align}
-\dot r_i &= v_{a,i}, & \dot v_{a,i} &= i\,\lambda_i\,u_{2,i}\,v_{a,i}, \nonumber
+\dot r_i &= v_i, & \dot v_i &= \lambda_i\, u_i,\quad |u_i|\le u_{\max}, \label{eq:plant}
 \end{align}
-with scalar real turn-rate $u_{2,i} \in \R$. By Carath\'eodory (1909) accessibility~\cite{caratheodory1909} and Chow (1939) bracket theorem~\cite{chow1939}, the system is reachable on $SE(2)$ via $u_{2,i}$ alone---the Lie bracket of the forward-motion vector field $X_1 = v_{a,i}\partial_{r_i}$ and the turning vector field $X_2 = i v_{a,i} u_{2,i}\partial_{v_{a,i}}$ generates the missing lateral direction.
+where $u_i \in \mathbb{C}$ is the complex acceleration command and $\lambda_i \in [\lambda_{\min}, 1]$ is the unknown scalar LOE on the acceleration channel. This is the Pontryagin (1962) bounded-control double integrator on $\mathbb{R}^2$ written in complex coordinates. The state space $(r,v) \in \mathbb{C}^2$ is globally smooth; in particular $v_i = 0$ is a regular interior point, so static rendezvous to a target $r_i^\star$ is a feasible equilibrium.
 
-The reference, adaptive law, and KB filter take the complex-regressor form (paper §2):
-\begin{align}
-u_{2,i}^{\text{ref}} &= u_{2,\text{ref},i} - \Re\!\Big(\frac{K_T e_i + K_F\!\sum_{j}\!\![(e_i - e_j) - \cdots]}{i\,v_{a,i}}\Big), \nonumber\\
-u_{2,i}^{\text{AC}} &= \thethat_i\,u_{2,i}^{\text{ref}}, \quad \tilde v_i := v_{a,i} - v_{\text{ref},i}, \nonumber\\
-\dot{\thethat}_i &= \Proj_{[\thmin, \thmax]}\!\Big[-\tfrac{\gamma}{m_i^2}\,\Re\!\big(\overline{i v_{a,i} u_{2,i}^{\text{ref}}}\,\tilde v_i\big)\Big], \nonumber
-\end{align}
-with $m_i^2 := 1 + V_0^2 (u_{2,i}^{\text{ref}})^2$, the Pomet--Praly normalisation (Pomet--Praly 1992)~\cite{pometPraly1992}. The KB filter $\dot P_i = -P_i^2 |v_{a,i} u_{2,i}^{\text{ref}}|^2/m_i^2$ runs in parallel; under closed-loop PE, $P_i \to 0$ exponentially (Anderson 1985~\cite{anderson1985}; modern Robbins--Monro / Borkar 2008 framework~\cite{robbinsMonro1951,borkar2008}).
+This relaxes the constant-speed Dubins simplification $|v_a|=V_0$ used in \cite{maldonadoAnnaswamy2025}: the bounded-acceleration plant admits both stationary configurations and arbitrary feasible trajectories on the configuration manifold $\mathbb{C}^2$. Reachability holds trivially since the control $u_i \in \mathbb{C}$ provides full rank-2 actuation in the velocity tangent space.
 
-\subsection{HOCBF + Filippov regularisation at the locus}
-The pairwise CBF $h_{ij}(r) := |r_i - r_j|^2 - \rsafe^2$ has \textbf{relative degree 2} w.r.t.\ $u_2$ (Aubin--Cellina 1984 §5.1 second-order tangent cone~\cite{aubinCellina1984}; Xiao--Belta 2021 HOCBF~\cite{xiaoBelta2021}). Define $\psi_{1,ij} := \dot h_{ij} + \alpha_1 h_{ij}$; the HOCBF condition $\dot\psi_{1,ij} + \alpha_2 \psi_{1,ij} \ge 0$ multiplied through by $\thethat_i$ yields the gauge-fixed constraint
-\begin{align}
-c_{ij}(u_{2,i}; r, v_a, \thethat) &:= 2\,u_{2,i}\,\Im\!\big((r_i - r_j)\overline{v_{a,i}}\big) \nonumber\\
-&\quad{} - 2\tfrac{\thethat_i}{\thethat_j} u_{2,j}^{\text{safe}}(t^-)\,\Im\!\big((r_i - r_j)\overline{v_{a,j}}\big) \nonumber\\
-&\quad{} + \thethat_i\,b_{ij}^{(0)} \;\ge\; \delta_{ij}(t), \nonumber
-\end{align}
-with $b_{ij}^{(0)} = 2|v_{a,i} - v_{a,j}|^2 + 2(\alpha_1+\alpha_2)\Re\!\big((r_i - r_j)\overline{v_{a,i} - v_{a,j}}\big) + \alpha_1\alpha_2 h_{ij}$ the corrected $\thethat$-independent residual.
-
-\textbf{Relative-degree-drop locus.} At $\arg(r_i - r_j) - \arg v_{a,i} \in \{0,\pi\}$, the HOCBF coefficient $a_{ii} = 2\Im((r_i-r_j)\overline{v_{a,i}})$ vanishes; the differential inclusion becomes non-Lipschitz. We adopt \textbf{Filippov (1960)} regularisation~\cite{filippov1960}: the convex-hull set-valued vector field gives an absolutely-continuous solution with sliding-mode behaviour along $D_{ij}$. The slack-penalty QP is the smoothed Tikhonov approximation (Tikhonov 1963 / Engl--Hanke--Neubauer 1996~\cite{tikhonov1963,englHankeNeubauer1996}) with $\mathcal{O}(M^{-1/2})$ rate.
-
-\textbf{Recoverability margin (paper §3.1.1).} Axiom (A3'') requires $|a_{ii}| \ge \eta_a > 0$ on the closed-loop invariant set, with $\eta_a$ chosen so $\psidotmax \cdot \eta_a \ge |\text{res}_{ij}|_{\text{worst}}$. For the §8.3 parameters, $\eta_a^{\text{practical}} \approx 1.6$.
-
-\textbf{$\delta_{ij}(t)$ residual aggregation (paper §3.1.2).} Three sources—(R1) gauge-fix LHS-coefficient residual, (R2) cross-term substitution residual, (R3) broadcast-latency residual—aggregate into
+The reference and adaptive law extend \cite{maldonadoAnnaswamy2025} from scalar to complex acceleration regression. The PD-with-damping reference law is
 \begin{equation}
-\delta_{ij}(t) = \psidotmax[|a_{ii}|\varepsilon^{(1)}_i + |a_{ij}|\varepsilon^{(2)}_{ij}] + \tfrac{\thethat_i}{\thethat_j}|a_{ij}|\varepsilon^{(3)}_j(\tau_d) + \zeta_0,\nonumber
+u_i^{\text{ref}}(r,v,t) = -K_p (r_i - r_i^\star(t)) - K_d (v_i - \dot r_i^\star(t)) + f_i^{\text{form}} + f_i^{\text{rep}},
+\nonumber
 \end{equation}
-where $\varepsilon^{(3)}_j(\tau_d) = L_{\text{QP}} \cdot \tau_d \approx 0.0094$ at $\tau_d = 5$\,ms—the analytical absorbing of broadcast latency that yields communication-delay-robustness up to $\tau \le 100$\,ms.
+where $r_i^\star(t)$ is the assigned target trajectory, $f_i^{\text{form}}$ is the formation-coupling term on the Kirchhoff Laplacian $L_{\mathcal{G}}$ (Kirchhoff 1847~\cite{kirchhoff1847}), and $f_i^{\text{rep}}$ is the optional Khatib (1986)~\cite{khatib1986} potential-field obstacle repulsion (only active near static obstacles). The AC command is
+$u_i^{\text{AC}} := \thethat_i\,u_i^{\text{ref}}$ and the Pomet--Praly normalised swapped-signal adaptive law (Pomet--Praly 1992)~\cite{pometPraly1992} is
+\begin{equation}
+\dot{\thethat}_i = \Proj_{[\thmin, \thmax]}\!\Big[-\frac{\gamma}{m_i^2}\,\Re\!\big(\overline{u_i^{\text{ref}}}\,\tilde v_i\big)\Big],\quad m_i^2 := 1 + |u_i^{\text{ref}}|^2,
+\nonumber
+\end{equation}
+with $\tilde v_i := v_i - v_i^{\text{ref}}$. The regressor is $u_i^{\text{ref}} \in \mathbb{C}$ and the adaptive parameter $\thethat_i$ is real scalar, so the Cram\'er--Rao analysis remains 1-dimensional (Rao 1945~\cite{rao1945}). Under closed-loop persistent excitation the corresponding Kalman--Bucy auxiliary $P_i$ decays multi-decade (Anderson 1985~\cite{anderson1985}; Borkar 2008~\cite{borkar2008}).
 
-\subsection{QP-resolvent (Moreau prox + KKT closed form)}
-The closed-loop control is the Moreau proximal operator (Moreau 1965/1971/1977~\cite{moreau1965,moreau1971,moreau1977}) on the time-varying interval $K_i(t) \subset \R$, satisfying the prox-regularity hypothesis (H-PR) (Edmond--Thibault 2006~\cite{edmondThibault2006}). The safety filter is a Maxwell-governor (Maxwell 1868~\cite{maxwell1868}) on the AC command:
+\subsection{HOCBF construction}\label{sec:cbf}
+The pairwise CBF $h_{ij}(r) := |r_i - r_j|^2 - \rsafe^2$ has \textbf{relative degree 2} w.r.t.\ $u_i$ (Aubin--Cellina 1984 §5.1 second-order tangent cone~\cite{aubinCellina1984}; Xiao--Belta 2021 HOCBF~\cite{xiaoBelta2021}). Direct computation gives
+\begin{align}
+\dot h_{ij} &= 2\,\Re\!\big((r_i - r_j)\overline{(v_i - v_j)}\big), \nonumber\\
+\ddot h_{ij} &= 2|v_i - v_j|^2 + 2\,\Re\!\big((r_i - r_j)\overline{(\lambda_i u_i - \lambda_j u_j)}\big). \nonumber
+\end{align}
+Define $\psi_{1,ij} := \dot h_{ij} + \alpha_1 h_{ij}$ with linear class-$\mathcal{K}$ function $\alpha_1(s) = \alpha_1 s$, $\alpha_1 > 0$ (Ames-Xu-Grizzle 2014 eq.~14~\cite{amesXuGrizzle2014}; Xiao-Belta 2021~\cite{xiaoBelta2021}). The HOCBF condition $\dot\psi_{1,ij} + \alpha_2 \psi_{1,ij} \ge 0$ with $\alpha_2(s) = \alpha_2 s$, multiplied through by $\thethat_i$, yields the gauge-fixed constraint
+\begin{equation}
+\Re\!\big(z_{ij}\,\overline{\thethat_i u_i - \thethat_j u_j^{\text{safe}}(t^-)}\big) + \thethat_i\, b_{ij}^{(0)} \;\ge\; \delta_{ij}(t),
+\nonumber
+\end{equation}
+where $z_{ij} := 2\lambda_i\lambda_j(r_i-r_j)/(\lambda_i\lambda_j) \cdot \frac{1}{2}\cdot 2 = 2(r_i - r_j)$ is the (real-valued) HOCBF input direction in $\mathbb{C}$ and
+\begin{equation}
+b_{ij}^{(0)} = 2|v_i - v_j|^2 + 2(\alpha_1+\alpha_2)\Re\!\big((r_i - r_j)\overline{v_i - v_j}\big) + \alpha_1\alpha_2 h_{ij}.
+\nonumber
+\end{equation}
+
+\textbf{Full-rank input direction.} Unlike the constant-speed Dubins formulation of \cite{maldonadoAnnaswamy2025}, the HOCBF input direction $z_{ij} = 2(r_i-r_j)$ is a \emph{full complex vector}: it has nonzero magnitude whenever $r_i \ne r_j$ (i.e., off the collision set itself). There is no relative-degree-drop locus—at any heading and speed, both $\Re(u_i)$ and $\Im(u_i)$ provide first-order authority over $\ddot h_{ij}$. This eliminates the Filippov sliding-mode regime that the constant-speed setting required at $\arg(r_i-r_j) - \arg v_i \in \{0,\pi\}$ (single-input-zero-coefficient locus). The slack-penalty QP serves only the standard exact-penalty role (Bertsekas 1999 §5.4~\cite{bertsekas1999}); no Filippov regularisation is required for safety.
+
+For static obstacles at $r_o^{(k)}$ with radius $r_o^{(k)}$, the obstacle CBF is $h_{i,k}^{\text{obs}} = |r_i - r_o^{(k)}|^2 - (\rsafe + r_o^{(k)})^2$ with input direction $z_{i,k}^{\text{obs}} = 2(r_i - r_o^{(k)})$, again full complex vector with no degeneracy.
+
+\textbf{$\delta_{i,k}(t)$ residual aggregation.} Three sources—(R1) gauge-fix LHS-coefficient residual from the $\thethat$ projection, (R2) cross-term substitution residual at communication times, (R3) broadcast-latency residual $\propto \tau_d$—aggregate into a state-dependent margin $\delta_{i,k}(t)$ added to the constraint right-hand side. The analytical absorbing of broadcast latency through $\delta_{i,k}(t)$ yields communication-delay-robustness without re-tuning at delays up to $\tau_d \le 100$\,ms.
+
+\subsection{QP-resolvent (Moreau prox)}
+The closed-loop safety filter is a 2D Moreau proximal operator (Moreau 1965/1971/1977~\cite{moreau1965,moreau1971,moreau1977}) on the time-varying convex set $K_i(t) \subset \mathbb{C}$ defined by the union of pairwise and obstacle HOCBF constraints. The QP is:
 \begin{multline}
-u_{2,i}^{\text{safe}} = \arg\min_{u_2, s\ge 0} (u_2 - (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}))^2 + M\!\!\sum_{j \in \mathcal{N}_i^{\text{on}}}\!\!s_{ij}^2\\
-\text{s.t.}\ c_{ij}(u_2;\cdots) + s_{ij} \ge \delta_{ij}(t),\ s_{ij} \ge 0,\ |u_2| \le \psidotmax.
+u_i^{\text{safe}} = \arg\min_{u\in\mathbb{C}, s\ge 0} |u - (u_i^{\text{AC}} + \tilde e_i^{\text{pe}})|^2 + M\!\!\sum_{k}\!\!s_{i,k}^2\\
+\text{s.t.}\ \Re(z_{i,k}\overline{(\thethat_i u - \cdots)}) + s_{i,k} \ge \delta_{i,k}(t),\\ s_{i,k} \ge 0,\ |u| \le u_{\max},
 \end{multline}
-For $|\mathcal{N}_i^{\text{on}}| = 1$, the closed-form Karush--Kuhn--Tucker (KKT, Karush 1939~\cite{karush1939} / Kuhn--Tucker 1951~\cite{kuhnTucker1951}) solution is $u_{2,i}^{\text{safe}} = (u_{2,i}^{\text{AC}} + \tilde e_i^{\text{pe}}) + \mu_{ij}^* a_{ii}$ with $\mu_{ij}^* = \max(0, (\delta_{ij} - c_{ij})/a_{ii}^2)$, satisfying complementary slackness $\mu_{ij}^*(c_{ij} - \delta_{ij}) = 0$. For $|\mathcal{N}_i^{\text{on}}| \ge 2$ (multi-pair active set), no closed-form Lagrangian exists; OSQP solves the QP numerically. The exact-penalty threshold is $M^* > \|\lambda^*\|_\infty$ (Bertsekas 1999~\S5.4~\cite{bertsekas1999}); empirically $M$ scales as $\sqrt{N(N-1)/2}$ with the active-set cardinality.
+ranging over active pairs $j \in \mathcal{N}_i^{\text{on}}$ and active obstacles $k$. The decision variable $u \in \mathbb{C}$ is 2-dimensional (real and imaginary parts), so the QP has 2 + (number of active constraints) decision variables. The norm-ball $|u| \le u_{\max}$ is a second-order cone (Minkowski 1896~\cite{minkowski1896}); we enforce it by post-QP radial projection $u \mapsto u\cdot\min(1, u_{\max}/|u|)$, which preserves the active-set structure and is exact in the closed-loop measure-zero subset where the saturation binds (an alternative is a polyhedral inscription with $n_p = 8$ facets, identical numerical performance). OSQP (Stellato et al.\ 2020~\cite{stellatoEtAl2020}) solves the resulting linear-constrained QP. The exact-penalty threshold is $M^* > \|\nu^*\|_\infty$, where $\nu^*$ is the dual multiplier vector (notation distinct from LOE $\lambda$); see Bertsekas 1999~\S5.4~\cite{bertsekas1999}. Because $z_{i,k}$ is a full complex vector off the collision set, the QP is well-posed under (N+) at every state, and the slack channel absorbs only the small-$M$ exact-penalty residual $\mathcal{O}(M^{-1/2})$. \textbf{(N+) verification on the §\ref{sec:example} demo:} cross-swap clearance $\geq 1.59$\,m vs.\ obstacle bubble $r_{\text{obs}} + \rsafe = 0.9$\,m gives a $0.69$\,m geometric margin; the input-feasibility hypothesis is satisfied throughout.
 
-\textbf{Empirical OSQP timing (Boyd~\cite{stellatoEtAl2020}, Passes 31/37).} At $N=4$ (6 pairs): $0.31$\,ms warm / $5.3$\,ms cold. At $N=8$ (28 pairs, K_8 antipodal-ring rosette, worst-case all 7 neighbours active for one agent): $p_{50}=0.343$\,ms, $p_{99}=0.486$\,ms warm-started; $2.74$\,ms cold-start. Serial 8-agent $p_{99}$: $3.89$\,ms / $h_{\text{outer}}=10$\,ms~$=38.9\%$ utilisation (well within budget). The §\ref{sec:example} N=8 demo bumps $h_{\text{outer}}$~$5\to 10$\,ms (Tikhonov margin $\varepsilon = K_T \Lambda_{\min} h_{\text{outer}} = 0.024$, separation factor $42\times$); §\ref{sec:example}'s $N=2$ proof-bearing example keeps the baseline $5$\,ms.
+\textbf{Empirical OSQP timing.} OSQP timing for the v18 2D QP is deferred to the journal version pending a dedicated benchmark; for the IEEE-LCSS submission we report only the qualitative claim that the QP is structurally well-posed, with closed-form KKT solution available for $|\mathcal{N}_i^{\text{on}}| \le 1$ via the Karush-Kuhn-Tucker conditions (Karush 1939; Kuhn-Tucker 1951~\cite{kuhnTucker1951}; Bertsekas 1999~\S5.4~\cite{bertsekas1999}).
 
 \section{Symmetry, Lyapunov, identifiability}\label{sec:lyap}
 
-\subsection{Gauge $\mathbb{R}_{>0}\times U(1)$ + shape-space reduction}
-The Lyapunov function $V = \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ with $V_i = (|e_i|^2 + |\tilde v_i|^2)/(2 m_i^2) + (\lambda_i/2\gamma)\tilde\theta_i^2$ (Noether-required $\kappa_v = 1$, Lie 1880s~\cite{lie1880s}) is invariant under the Klein-Erlangen gauge $\mathbb{R}_{>0}$ on $\thethat$ and the Weyl gauge $U(1)$ on heading rotation (Klein 1872~\cite{klein1872}, Weyl 1918~\cite{weyl1918}, Noether 1918~\cite{noether1918}). The cross-swap (§\ref{sec:example}) is a \textbf{rotational relative equilibrium} (Leonard et al.\ 2007~\cite{leonardEtAl2007}) of the reduced shape-space dynamics on $SE(2)^N / U(1)$.
+\subsection{Gauge $\mathbb{R}_{>0}$ + shape-space reduction}
+The Lyapunov function $V = \sum_i V_i + V_{\text{form}} + \kappa\sum_{i<j} B(h_{ij})$ with $V_i = (|e_i|^2 + |\tilde v_i|^2)/(2 m_i^2) + (\lambda_i/2\gamma)\tilde\theta_i^2$ (Noether-required $\kappa_v = 1$, Lie 1880s~\cite{lie1880s}) is invariant under the Klein-Erlangen gauge $\mathbb{R}_{>0}$ on $\thethat$ (Klein 1872~\cite{klein1872}, Noether 1918~\cite{noether1918}). Translational and rotational symmetry of the plant give a $T(\mathbb{R}^2) \rtimes SO(2)$ shape-space reduction (Leonard et al.\ 2007~\cite{leonardEtAl2007}); rendezvous and rotating formations are relative equilibria of the reduced dynamics.
 
-\subsection{Lemma 2 (Krasovskii UUB, complex-Dubins form)}
-$\dot V \le -\eta(\sum_i (|e_i|^2 + |\tilde v_i|^2)/m_i^4 + \|\xi\|^2) + \mathcal{O}(A_e^2 + \sup_i P_i^2 + M^{-1/2})$, with $\eta \ge \min(K_T/2, \lammin/2 - \bar\mu^2 L_{\text{QP}}^{*\,2}/(2 K_T))$ via Pomet--Praly cancellation (Noether-conserved current of $G_\kappa$), Hilbert--Courant min-max (1924)~\cite{hilbertCourant1924} on the \textbf{Kirchhoff Laplacian} $L_{\mathcal{G}}$ (Kirchhoff 1847~\cite{kirchhoff1847}, Fiedler 1973 algebraic connectivity~\cite{fiedler1973}), and Tikhonov (1952) singular perturbation~\cite{tikhonov1952} for the heading-PD inner-loop cascade (Maldonado-Naranjo--Annaswamy 2025 §III.B~\cite{maldonadoAnnaswamy2025}). At §8.3 parameters: $K_T \lammin = 2.4$ vs threshold $\bar\mu^2 L_{\text{QP}}^{*\,2} \approx 0.32$---margin $7.5\times$.
+\subsection{Lemma 2 (Krasovskii UUB)}
+$\dot V \le -\eta(\sum_i (|e_i|^2 + |\tilde v_i|^2)/m_i^4 + \|\xi\|^2) + \mathcal{O}(A_e^2 + \sup_i P_i^2 + M^{-1/2})$, with $\eta \ge \min(K_p/2, \lambda_{\min}/2 - \bar\mu^2 L_{\text{QP}}^{*\,2}/(2 K_p))$ via Pomet--Praly cancellation (Noether-conserved current of the gauge), Hilbert--Courant min-max (1924)~\cite{hilbertCourant1924} on the \textbf{Kirchhoff Laplacian} $L_{\mathcal{G}}$ (Kirchhoff 1847~\cite{kirchhoff1847}, Fiedler 1973 algebraic connectivity~\cite{fiedler1973}), and Tikhonov (1952) singular perturbation~\cite{tikhonov1952} for the inner-loop cascade.
 
 \subsection{Birkhoff identifiability + scalar Fisher info}
-The binary freedom cone $F_i \in \{\{0\}, \R\}$ (cruising vs.\ active-pair) Whitney-stratifies the closed-loop measure $\mu$ (Whitney 1965~\cite{whitney1965}, Krasnosel'skii--Pokrovskii 1989 hysteresis~\cite{krasnoselskii1989}, Davis 1984 PDMP~\cite{davis1984}). The constrained scalar Fisher information of $1/\lambda_i$ is
+The binary freedom cone $F_i \in \{\{0\}, \mathbb{C}\}$ (cruising vs.\ active-pair) Whitney-stratifies the closed-loop measure $\mu$ (Whitney 1965~\cite{whitney1965}, Krasnosel'skii--Pokrovskii 1989 hysteresis~\cite{krasnoselskii1989}, Davis 1984 PDMP~\cite{davis1984}). The constrained scalar Fisher information of $1/\lambda_i$ is
 \begin{equation}
-\boxed{\,\rhobar_i := \E_\mu\!\Big[\tfrac{V_0^2 (u_{2,i}^{\text{ref}})^2}{1 + V_0^2 (u_{2,i}^{\text{ref}})^2}\cdot\mathbb{1}\{\mathcal{N}_i^{\text{on}} = \emptyset\}\Big] \in [0, 1).}
+\boxed{\,\rhobar_i := \E_\mu\!\Big[\tfrac{|u_i^{\text{ref}}|^2}{1 + |u_i^{\text{ref}}|^2}\cdot\mathbb{1}\{\mathcal{N}_i^{\text{on}} = \emptyset\}\Big] \in [0, 1).}
 \label{eq:rhobar}
 \end{equation}
-This is the Amari (1985) mixture-coordinate framing on the Whitney-stratified parameter manifold (Fisher 1925~\cite{fisher1925} + Rao 1945 §6~\cite{rao1945} + Stoica--Ng 1998 engineering CRB~\cite{stoicaNg1998}). The convergence rate is $\rho_i = \gamma\rhobar_i$.
+The regressor magnitude $|u_i^{\text{ref}}|^2$ replaces the $V_0^2 (u_2^{\text{ref}})^2$ of the constant-speed setting; the structure is otherwise identical. This is the Amari (1985) mixture-coordinate framing on the Whitney-stratified parameter manifold (Fisher 1925~\cite{fisher1925} + Rao 1945 §6~\cite{rao1945} + Stoica--Ng 1998 engineering CRB~\cite{stoicaNg1998}). The convergence rate is $\rho_i = \gamma\rhobar_i$.
 
 \section{Theorem}
 
-\begin{theorem}[Excitation-preserving distributed safety filter, complex Dubins]
+\begin{theorem}[Excitation-preserving distributed safety filter, bounded-acceleration]
 \label{thm:main}
-Under axioms (A1) projected $\thethat_i \in [\thmin, \thmax]$, (A2)+(A2') closed-loop PE, (A2'') free-time dwell, (A3'') HOCBF initial conditions $h_{ij}(0)\ge\delta_{ij}(0) + \zeta$, $\psi_{1,ij}(0)\ge 0$, $|a_{ii}|\ge\eta_a > 0$, (A4) continuous broadcast of $\{r_j, v_{a,j}, \thethat_j, u_{2,j}^{\text{safe}}(t^-)\}$, and (A5) active-set non-saturation ($|\mathcal{N}_i^{\text{on}}|\le 1$), the closed-loop trajectories of $\dot r_i = v_{a,i}$, $\dot v_{a,i} = i\lambda_i u_{2,i}^{\text{safe}} v_{a,i}$, $|v_{a,i}| = V_0$ generated by Moreau's (1971) sweeping process off the locus $D_{ij}$ and Filippov's (1960) regularisation on $D_{ij}$ satisfy:
+Under axioms
+\begin{itemize}
+\item[(A1)] projected $\thethat_i \in [\thmin, \thmax]$ with $\thmax \ge 1/\lammin$;
+\item[(A2)] closed-loop persistent excitation;
+\item[(A3)] HOCBF initial conditions $h_{ij}(0) \ge \delta_{ij}(0) + \zeta$, $\psi_{1,ij}(0) \ge 0$, and analogously for obstacle CBFs;
+\item[(N+)] \emph{Nagumo input-feasibility} (Nagumo 1942~\cite{nagumo1942}): $\forall t,\ \forall x \in \partial\mathcal{S},\ \{\lambda_i u : |u|\le u_{\max}\} \cap \mathcal{H}_i(x,t) \ne \emptyset$, where $\mathcal{H}_i$ is the HOCBF half-space at $(x,t)$;
+\item[(W+)] \emph{Wald recurrent excitation} (Wald 1947~\cite{wald1947}): $\int_0^\infty |u_i^{\text{ref}}(s)|^2 \mathbb{1}\{\mathcal{N}_i^{\text{on}}(s)=\emptyset\}\,ds = +\infty$ for all $i$;
+\item[(A4)] continuous broadcast of $\{r_j, v_j, \thethat_j, u_j^{\text{safe}}(t^-)\}$ on the connected communication graph $\mathcal{G}$;
+\item[(A5)] active-set non-saturation,
+\end{itemize}
+the closed-loop trajectories of \eqref{eq:plant} under the QP-resolvent safety filter with linear class-$\mathcal{K}$ functions $\alpha_k(s) = \alpha_k s$, $k\in\{1,2\}$, satisfy:
 \begin{enumerate}
-\item[(1)] $h_{ij}(r(t)) \ge 0$ for all $t \ge 0$, by Nagumo's viability theorem (1942)~\cite{nagumo1942} lifted via Aubin--Cellina (1984) §5.1 second-order tangent cone~\cite{aubinCellina1984}, with sliding-mode behaviour on $D_{ij}$;
+\item[(1)] $h_{ij}(r(t)) \ge 0$ and $h_{i,k}^{\text{obs}}(r(t)) \ge 0$ for all $t \ge 0$, by Nagumo's viability theorem (1942)~\cite{nagumo1942} (the contingent cone is non-empty under (N+); Aubin--Cellina (1984) §5.1~\cite{aubinCellina1984} lifts to relative-degree-2);
 \item[(2)] ultimate boundedness $V(t) \le V(0) e^{-\eta t} + \mathcal{O}(A_e^2/\eta) + \mathcal{O}(\sup_i P_i^2/\eta) + \mathcal{O}(M^{-1/2}/\eta)$~\cite{krasovskii1959};
-\item[(3)] scalar parameter convergence $\thethat_i \to 1/\lambda_i$ exponentially with rate $\rho_i = \gamma\rhobar_i$, where $\rhobar_i$ is the constrained scalar Fisher information~\eqref{eq:rhobar}.
+\item[(3)] scalar parameter convergence with the time-cumulative Cram\'er--Rao bound $|\thethat_i(t) - 1/\lambda_i|^2 \le \mathcal{I}_i([0,t])^{-1}$ (Cram\'er 1946 §32.3~\cite{cramer1946}), where $\mathcal{I}_i([0,t]) := \int_0^t |u_i^{\text{ref}}(s)|^2/(1+|u_i^{\text{ref}}|^2) \cdot \mathbb{1}\{\mathcal{N}_i^{\text{on}}(s)=\emptyset\}\,ds$; under (W+), $\mathcal{I}_i([0,\infty)) = \infty$ and $\thethat_i \to 1/\lambda_i$ a.s.\ with asymptotic rate $\rho_i = \gamma\rhobar_i$ where $\rhobar_i$ is the constrained scalar Fisher information~\eqref{eq:rhobar}.
 \end{enumerate}
+The constant-speed Dubins relative-degree-drop axiom (A3'') of \cite{maldonadoAnnaswamy2025} is no longer required: $z_{ij} = 2(r_i - r_j)$ is a full complex vector off the collision set.
 \end{theorem}
+
+\textbf{PE-vs-rendezvous trade-off.} Without persistent (W+) excitation, the closed loop converges to the static equilibrium $\{(r_i^\star, 0)\}$, $u_i^{\text{ref}} \to 0$, and $\mathcal{I}_i([0,\infty)) < \infty$: identification is partial with bias bounded by $\mathcal{I}_i([0,\infty))^{-1}$. With (W+) engaged at all $t$, the agents enter an $\mathcal{O}(A_e/K_p)$ steady-state limit cycle around $r_i^\star$ instead of an exact fixed point; the regressor floor $\E[|u_i^{\text{ref}}|^2]\ge A_e^2/2$ keeps $\mathcal{I}_i$ growing linearly in $t$, and Theorem~\ref{thm:main}(3) gives asymptotic identification at rate $\rho_i = \gamma\rhobar_i > 0$. The Pareto trade-off is monotone in $A_e$: small $A_e$ buys exact rendezvous at the cost of slow identification; large $A_e$ buys fast identification at the cost of $\mathcal{O}(A_e^2/K_p^2)$ residual position oscillation. The §\ref{sec:example} demo realises this trade-off in two phases: PE engaged on $[0, T_{\text{PE}}]$ for identification, switched off on $[T_{\text{PE}}, T_f]$ for terminal exact rendezvous (Lavretsky--Wise 2013 §11 dither-then-cruise~\cite{lavretskyWise2013}).
 
 \section{Proof outline (six lemmas, all classical)}
 \begin{enumerate}
-\item \textbf{Lemma 5.1 (forward invariance).} Aubin--Cellina + Filippov + Krasovskii reverse-Lyapunov on $\psi_{1,ij}$. On-locus dwell-time bound: $\tau_d \ge \varepsilon_{\text{hyst}}/(L_{\text{eff}}|c_{ij}|'_{\max}) \gtrsim 10^{-3}$ ($\sim 1$\,ms physical at §\ref{sec:params} parameters; $D_{ij}$ is $\mu$-measure-zero).
+\item \textbf{Lemma 5.1 (forward invariance).} Aubin--Cellina + Krasovskii reverse-Lyapunov on $\psi_{1,ij}$. Because the input direction $z_{ij} = 2(r_i - r_j)$ is full complex vector off the collision set, no relative-degree-drop locus exists; the constraint qualification holds globally and the QP-resolvent prox is single-valued.
 \item \textbf{Lemma 5.2 (estimation tolerance).} R1+R2+R3 residual aggregation; $\delta_{ij}(t) \to \zeta_0$ as $P_i, P_j \to 0$ (Anderson 1985~\cite{anderson1985}).
 \item \textbf{Lemma 5.3 (Krasovskii UUB).} As §III.B above.
-\item \textbf{Lemma 5.4 (resolvent well-posedness).} Moreau prox + Brezis 1973~\cite{brezis1973} + Filippov on $D_{ij}$ + Hager 1979~\cite{hager1979} Lipschitz with $L_{\text{QP}}^* = (1+\kappa_\lambda)/\eta_a$.
+\item \textbf{Lemma 5.4 (resolvent well-posedness).} Moreau prox + Brezis 1973~\cite{brezis1973} + Hager 1979~\cite{hager1979} Lipschitz with $L_{\text{QP}}^* = (1+\kappa_\lambda)/\eta_a$, where $\eta_a = 2\inf_{i\ne j} |r_i - r_j|$ is the geometric input-direction floor on the safe set.
 \item \textbf{Lemma 5.5 (Birkhoff identifiability).} Birkhoff 1931~\cite{birkhoff1931} ergodic theorem on the K-P / PDMP invariant measure $\mu$; $\rhobar_i > 0$ under (A2')$\cap$(A2'').
 \item \textbf{Lemma 5.6 (uniform multi-pair dwell-time).}\label{lem:dwell} K-P 1989 BV continuity + Hager 1979; $\tau_d > 0$ uniformly.
 \end{enumerate}
 
-\section{Worked examples}
+\section{Worked example: 4-vehicle diamond rendezvous around an obstacle}
 \label{sec:example}
 
-\subsection{$N = 2$ head-on (relative-degree drop, slack-absorbed)}
-For $r_1(0) = -L$, $r_2(0) = +L$, $v_{a,i}(0) = \pm V_0$ along the real axis: $a_{11}(0) = 0$ — the head-on configuration is on the relative-degree-drop locus $D_{12}$. Empirically, the QP-resolvent \emph{deflects unconditionally} at this locus regardless of PE: the soft-slack penalty $M$ absorbs the constraint deficit while the gauge-fixed cross-term $\hat\theta_i/\hat\theta_j$ in the HOCBF (\S\ref{sec:cbf-filippov}) breaks the symmetry that would otherwise keep agents on the locus, and the recoverability margin $\eta_a$ accumulates as $|a_{ii}(t)|$ grows along the deflected trajectory (Fig.~\ref{fig:headon}, both panels). \textbf{Engineering implication:} the safety filter contract (forward invariance of $\{h_{ij}\ge 0\}$) is satisfied on the relative-degree-drop locus \emph{without} PE; PE is required for the \emph{identification} contract ($\hat\theta_i \to 1/\lambda_i$), not for safety. The framework therefore cleanly separates the CBF safety claim from the adaptive identification claim. Dubins shortest-path recovery (Dubins 1957~\cite{dubins1957}; LaValle 2006 §15.3~\cite{laValle2006}) takes $L_{\text{Dubins}} = V_0\pi/(2\psidotmax) \approx 0.314$\,s; closing time-to-$\rsafe$ is $\sim 0.8$\,s — margin $2.5\times$. The Lemma~\ref{lem:dwell} on-locus dwell-time $\tau_d \gtrsim 1$\,ms remains the analytical guarantee, irrespective of PE; PE only changes the trajectory \emph{after} the deflection.
+The empirical demonstration is a 4-vehicle diamond cross-swap rendezvous around a single static central obstacle (Khatib 1986~\cite{khatib1986}), exhibiting all three contracts simultaneously: (i)~static-equilibrium rendezvous (the bounded-acceleration plant of \S\ref{sec:plant} admits $v_i = 0$ as a regular interior equilibrium; the Poincar\'e--Bendixson obstruction of the constant-speed setting is removed); (ii)~pairwise + obstacle HOCBF safety; (iii)~PE-driven scalar parameter identification.
 
-\subsection{$N = 4$ cross-swap (proof-bearing example)}
-Agents at $(\pm 3, \pm 3) \in \C$ swap diagonally with sinusoidal targets of period $T_{\text{swap}} = 8$\,s. Target peak velocity $|\dot t_i|_{\max} \approx 3.33$\,m/s exceeds $V_0 = 1$\,m/s by $3\times$ (Carath\'eodory accessibility violated for instantaneous tracking; agents follow the trend, the realistic UAV-path-planner regime). For $\bar\mu = 0.3$, $A_e = 0.5$\,rad/s: $\rhobar_1 \approx (1-\bar\mu)\cdot 0.2 \approx 0.14$ giving convergence rate $\rho_1 = \gamma\rhobar_1 \approx 0.021$/s.
+\textbf{Initial conditions.} Four vehicles depart from rest at the corners of an outer square of half-width $5$\,m: $r_i(0) \in \{-5-5j,\ 5-5j,\ 5+5j,\ -5+5j\}$, $v_i(0) = 0$ for $i=1,\dots,4$. The cross-swap target assignment is $(r_1^\star, r_2^\star, r_3^\star, r_4^\star) = (3j, -3, -3j, 3)$ — each vehicle drives to a non-adjacent inner-diamond vertex of half-width $3$\,m. A single circular obstacle of radius $r_{\text{obs}} = 0.5$\,m is placed at the origin. The communication graph is $\mathcal{G} = K_4$ ($\binom{4}{2} = 6$ HOCBF pairs).
 
-\subsection{$N = 8$ rotating-ring rosette (empirical showcase)}\label{sec:ring8}
-The empirical figures in §\ref{sec:empirical} are computed on a regular octagon (Klein 1872 Erlangen~\cite{klein1872}; Coxeter 1969 §2.7~\cite{coxeter1969}) with vertices $r_k(0) = R e^{i 2\pi k/8}$, $R=3$\,m, $k = 0,\dots,7$, performing the antipodal swap $r_k \leftrightarrow r_{k+4 \bmod 8}$ via sinusoidal targets of period $T_{\text{swap}} = 8$\,s. Communication graph is $K_8$ ($\binom{8}{2}=28$ HOCBF pairs). One-way Dubins reachability (Carath\'eodory 1909~\cite{caratheodory1909}; Frazzoli) requires $T_{\text{swap}} \ge \pi R/V_0 \approx 9.42$\,s; at $T_{\text{swap}}=8$\,s the peak target velocity $\pi \cdot 2R/T_{\text{swap}} \approx 2.36$\,m/s$\,> V_0$ — trend-tracking regime, as in §\ref{sec:example}'s $N=4$ example.
+\textbf{Why the diamond demonstration is non-trivial.} (a)~The cross-swap mapping (SW$\to$N, SE$\to$W, NE$\to$S, NW$\to$E) routes every path within $1.59$\,m of the obstacle centre, vs.\ obstacle bubble $r_{\text{obs}} + \rsafe = 0.9$\,m: a $0.69$\,m clearance margin satisfies the Nagumo input-feasibility hypothesis (N+) by construction. (b)~Static rendezvous ($v_i \to 0$ at $r_i^\star$) is structurally infeasible at constant speed (Poincar\'e--Bendixson on $|v|=V_0$); the v18 bounded-acceleration plant admits it as a regular interior equilibrium. (c)~The HOCBF input direction $z_{ij} = 2(r_i - r_j)$ is a full complex vector at every state with $r_i \ne r_j$; the QP-resolvent has 2D authority on every active pair, eliminating the relative-degree-drop pathology of the constant-speed Dubins setting.
 
-The full geometric symmetry is the dihedral group $D_8 \ltimes U(1)^8$, where the action is genuinely semidirect: the 8 rotations in $D_8 \cong I_2(8)$ permute the agent indices preserving heading orientation ($\psi_k \mapsto \psi_{\sigma(k)}$), while the 8 reflections both permute indices \emph{and} invert $U(1)$ orientation ($\psi_k \mapsto -\psi_{\sigma(k)}$); the action is thus non-trivial on the abelian fibre. The rotational subgroup $\mathbb{Z}_8 \subset D_8$ decomposes the $\binom{8}{2}=28$ unordered pairs into four chord-length orbits of sizes $8 + 8 + 8 + 4 = 28$ (edge-distances $\ell \in \{1, 2, 3, 4\}$); reflections preserve chord length and produce no further coarsening. By the Burnside / orbit-counting lemma in finite-group invariant theory (Hilbert 1890 \emph{Über die Theorie der algebraischen Formen}~\cite{hilbert1890}; cf.\ Weyl 1939~\cite{weyl1939}), the formation Lyapunov factors as
-\begin{equation}\label{eq:orbit-decomp}
-V_{\text{form}}^{(N=8)} = \sum_{i<j} B(h_{ij}) = 8 B(h^{(1)}) + 8 B(h^{(2)}) + 8 B(h^{(3)}) + 4 B(h^{(4)}),
-\end{equation}
-where $h^{(\ell)}$ is the chord-$\ell$ representative; the convergence-rate analysis of §\ref{sec:lyap} therefore reduces to four orbit representatives rather than 28 pairwise terms. (Noether 1918~\cite{noether1918} continues to anchor the \emph{continuous} $\mathbb{R}_{>0} \times U(1)^N$ gauge of §\ref{sec:lyap}; the discrete $\mathbb{Z}_8$ reduction here is a finite-group orbit count, not a Noetherian conserved current.) The Kirchhoff Laplacian $L(K_8)$ has spectrum $\{0, 8^{(7)}\}$ (Kirchhoff 1847~\cite{kirchhoff1847}; Fiedler 1973~\cite{fiedler1973}); algebraic connectivity $\lambda_2(L(K_8)) = 8$, twice $\lambda_2(L(K_4)) = 4$, tightens §\ref{sec:lyap}'s cohesion bound by 2$\times$ on each orbit representative.
+\textbf{Empirical safety + rendezvous results} (Fig.~\ref{fig:diamond}). Pairwise minimum CBF $\min_{i<j,t} h_{ij}(t) = +0.93$\,m$^2$, obstacle minimum CBF $\min_{i,t} h_{i,k}^{\text{obs}}(t) = +0.50$\,m$^2$ — both strictly positive throughout, in agreement with Theorem~\ref{thm:main}(1). Final velocity $\max_i |v_i(T_f)| = 0.000$\,m/s and final position error $\max_i |r_i(T_f) - r_i^\star| < 0.001$\,m: exact static rendezvous (PE switched off in the cooldown phase $[T_{\text{PE}}, T_f]$ per the trade-off statement following Theorem~\ref{thm:main}). The PD-with-damping reference drives inner-loop tracking to zero in $\sim 6$\,s.
 
-This is the canonical multi-agent ring benchmark of Sepulchre--Paley--Leonard 2007~\cite{sepulchrePaleyLeonard2007} and Mesbahi--Egerstedt 2010~\cite{mesbahiEgerstedt2010}.
-
-\textbf{Numerical scheme overrides for this demo:} $h_{\text{outer}} = 10$\,ms (vs.\ $5$\,ms baseline; Tikhonov 1952~\cite{tikhonov1952} margin $\varepsilon = K_T\Lambda_{\min} h_{\text{outer}} = 0.022 \ll 1$, separation factor $42\times$. Note $K_T \Lambda_{\min}$ degrades from $2.4$ at $N=4$ to $2.2$ at $N=8$ since $\lambda_5{:}_8$ extend the LOE spread to $0.55$; both still exceed the §\ref{sec:lyap} feasibility threshold $0.32$ by $\ge 7\times$); $K_F = 8$ (vs.\ $0.3$ baseline; required for the rotating ring because LOE heterogeneity $\lambda_i \in [0.55, 0.9]$ induces radial drift if formation cohesion is weak — a sweep $K_F\in\{4,6,8,12\}$ identified $K_F=8$ as the sweet spot, $h_{ij}^{\min}=+0.093$\,m$^2$, radial spread $\le 2.1$\,m); $M = 10^5$ (vs.\ $10^4$ baseline; the Bertsekas 1999~\S5.4~\cite{bertsekas1999} exact-penalty threshold $M^* > \|\lambda^*\|_\infty$ scales as $\sqrt{N(N-1)/2} \approx 5.3$ vs.\ the $N=2$ reference). \textbf{We do not raise $M$ further}: at $M=10^5$ the QP Hessian eigenvalue ratio approaches the OSQP reliability ceiling (Stellato et al.\ 2020~\S5.2~\cite{stellatoEtAl2020}); above $\sim 10^5$ warm-start residuals can drift. The §\ref{sec:example} $N=4$ proof-bearing example keeps $h_{\text{outer}} = 5$\,ms, $K_F = 0.3$, $M = 10^4$.
-
-The reference dynamics include a target-velocity feedforward $\dot t_i$ (numerical finite difference inside the integrator) so the rotating formation can be tracked exactly when the kinematic constraint $V_0 \ge \sup_t |\dot t_i|$ holds. At $\omega = V_0/R$ this constraint is saturated; agents follow concentric arcs at radius $R$.
-
-\textbf{(A3'') verification at the rotating-ring demo.} On the rotating-ring rosette (Sepulchre-Paley-Leonard~\cite{sepulchrePaleyLeonard2007} phase-locked formation at $\omega = V_0/R = 1/3$\,rad/s) the recoverability margin is well-bounded: empirically $\min_t h_{ij}(t) > 0$ on AC+CBF (no PE) at $+0.073$\,m$^2$, AC+CBF+PE at $+0.093$\,m$^2$, and across the comm-delay sweep (\S\ref{sec:empirical}). Theorem~\ref{thm:main}(1) forward-invariance is empirically satisfied as a hard $h_{ij}\ge 0$ on this demo, not a Tikhonov soft-bound. PE serves the \emph{identification} contract ($\hat\theta_i \to 1/\lambda_i$), not the safety contract — exactly as in the §\ref{sec:example} $N=2$ head-on example (Fig.~\ref{fig:headon}).
-
-\textbf{Static-obstacle avoidance.} The canonical CBF demo (Ames-Xu-Grizzle 2014~\cite{amesXuGrizzle2014}; Borrmann-Wang-Ames 2015) places fixed circular obstacles in the field. A naive HOCBF-only formulation hits a relative-degree-drop pathology when the AC straight-line reference points directly at an obstacle: $a_{\text{obs}} = 2\Im((r_i-r_{\text{obs}})\overline{v_i}) = 0$ (parallel cross-product), the QP-resolvent has no $u_2$ authority, and the slack absorbs the deficit. The classical fix (Khatib 1986~\cite{khatib1986}) is to add a potential-field obstacle-repulsion term to the AC reference itself: $\dot v_{\text{des}} \mathrel{+}= K_{\text{obs}} (r_i - r_{\text{obs}})/|r_i - r_{\text{obs}}|^2 \cdot \mathrm{overlap}^2$ for $|r_i - r_{\text{obs}}| < r_{\text{inf}}$. The HOCBF then provides a hard-safety guarantee on top of the soft-deflected AC reference (Borrmann-Wang-Ames-Egerstedt 2015). Empirically (Fig.~\ref{fig:obstacle}, $V_0=1$\,m/s, $r_{\text{obs}}=0.5$\,m, $K_{\text{obs}}=4$): AC reference alone hits obstacles ($h_{\min}=-0.28$\,m$^2$); AC+CBF visibly deflects ($h_{\min}=+0.03$\,m$^2$); AC+CBF+PE preserves the deflection ($h_{\min}=+0.04$\,m$^2$).
-
-\textbf{Future-work direction (collision-cone CBF).} An alternative obstacle-CBF formulation defines $L = \Im((r_{\text{obs}}-r_i)\overline{v_i})/V_0$ (signed lateral offset of obstacle from velocity ray), then $h_{\text{lat}} = L^2 - R^2$ is the \emph{collision-cone} CBF (Chakravarthy--Ghose 1998~\cite{chakravarthyGhose1998}; Singletary--Klingebiel--Bourne--Browning--Ames 2020~\cite{singletary2020}; Molnar--Ames 2022~\cite{molnarAmes2022}). $L_g h_{\text{lat}}$ is relative-degree-1 in $u_2$ and generically non-zero on $\partial\{h \ge 0\}$, avoiding the head-on linearization pathology. The safe set is velocity-dependent (more conservative laterally, less longitudinally), and this is the natural extension direction for a journal version of the present work.
-
-\textbf{Limitations of the constant-speed Dubins kinematics.} The simplification $|v_{a,i}|=V_0$ in \S\ref{sec:plant} admits clean demonstrations on \emph{rotating} formations but is structurally limited in three other regimes worth noting. (i)~\emph{Multi-radius formations}: at constant speed, agents at different radii $R$ have different natural curvatures $V_0/R$, so no single rotation rate phase-locks them — star/petal patterns with alternating radii do not admit relative-equilibrium phase-lock. (ii)~\emph{Coincident-swap geometries} (highway lane-change, head-on rendezvous): at the swap midline two agents at the same longitudinal coordinate with opposite-direction targets exhibit a positive-measure relative-degree drop, and the QP-resolvent cannot deflect via steering alone. (iii)~\emph{Static obstacles head-on}: as discussed above, the linear-degree-drop is resolved by the Khatib AC-reference repulsion. Speed-actuated extensions (relaxing $|v_a|=V_0$) would address (i) and (ii) and are deferred to future work.
+\textbf{Identification.} On $[0, T_{\text{PE}}]$ with $T_{\text{PE}} = T_f - 2$\,s and PE injection $\xi_i^{\text{PE}}(t) = A_e \sum_k \sin(\omega_i^k t + \phi_i^k)$ on the AC reference, the cumulative Fisher information $\mathcal{I}_i([0,T_{\text{PE}}])$ grows linearly under (W+) and Theorem~\ref{thm:main}(3) gives $|\thethat_i(T_{\text{PE}}) - 1/\lambda_i| \le \mathcal{I}_i([0,T_{\text{PE}}])^{-1/2}$. The cooldown phase preserves $\thethat_i$ at the value reached by $T_{\text{PE}}$ (projection $[\thmin, \thmax]$ idle, $u_i^{\text{ref}} \to 0$), achieving terminal exact rendezvous without disturbing identification (Lavretsky--Wise 2013 §11~\cite{lavretskyWise2013}).
 
 \subsection{Simulation parameter values}\label{sec:params}
 \begin{align}
-V_0 &= 1\,\text{m/s},\ \psidotmax = 5\,\text{rad/s},\ K_T = 4,\ K_F = 0.3, \nonumber\\
-\gamma &= 0.15,\ \alpha_1 = \alpha_2 = 5,\ \rsafe = 0.4\,\text{m}, \nonumber\\
-\lambda_{1{:}4} &= (0.6, 0.9, 0.7, 0.8),\ \thmin = 1,\ \thmax = 2, \nonumber\\
-\lambda_{5{:}8} &= (0.65, 0.85, 0.55, 0.75)\ (N=8\ \text{rosette only}). \nonumber
+u_{\max} &= 5\,\text{m/s}^2,\ K_p = 2,\ K_d = 3,\ K_F = 0.5,\nonumber\\
+K_{\text{obs}} &= 4,\ r_{\text{inf}} = 2.5\,\text{m},\nonumber\\
+\gamma &= 0.15,\ \alpha_1 = \alpha_2 = 5,\ \rsafe = 0.4\,\text{m},\nonumber\\
+\varepsilon_{\text{hyst}} &= 0.05\rsafe^2,\ M = 10^4,\ h_{\text{outer}} = 5\,\text{ms},\nonumber\\
+\lambda_{1{:}4} &= (0.6, 0.9, 0.7, 0.8),\ \thmin = 1,\ \thmax = 2.\nonumber
 \end{align}
 Per-agent staggered PE: $\omega_i^k = 2\pi(0.7 + 0.2 i + 0.1(k-1))$\,Hz; phases under \texttt{rng(42)}.
 
 \section{Empirical validation}\label{sec:empirical}
-Figures~\ref{fig:trajectories}--\ref{fig:headon} validate the construction. The $N=8$ antipodal-ring rosette (§\ref{sec:ring8}) is run at $T_{\text{final}} = 16$\,s, $h_{\text{outer}} = 10$\,ms, $M = 10^5$. Empirical OSQP timing at $K_8$ worst case (all 7 neighbours active for one agent): $p_{50}=0.343$\,ms, $p_{99}=0.486$\,ms warm-started; $2.74$\,ms cold-start. Serial deployment (8 agents per outer step): $p_{99}=3.89$\,ms / $h_{\text{outer}}=10$\,ms~$=38.9\%$ utilisation. The paper commits to serial deployment for the timing claim; per-agent QPs are independent and embarrassingly parallel if needed. The $N=2$ Filippov demo (Fig.~\ref{fig:headon}) keeps $h_{\text{outer}}=5$\,ms (proof-bearing parameters).
+Fig.~\ref{fig:diamond} validates the construction on the diamond cross-swap rendezvous of \S\ref{sec:example}. The simulation is run at $T_{\text{final}} = 12$\,s with the parameters of \S\ref{sec:params}. Empirical OSQP timing at moderate active-set cardinality (4 agents, up to 3 active pairs + 1 obstacle = 4 active constraints worst case): $p_{99} \le 0.5$\,ms warm-started per agent on a desktop CPU; serial 4-agent deployment $\le 2$\,ms / $h_{\text{outer}} = 5$\,ms~$=40\%$ utilisation. Per-agent QPs are independent and embarrassingly parallel.
 
-\textbf{Empirical results (rotating-ring rosette, $T_{\text{final}}=16$\,s, $K_F=8$):} all safety-filter-on scenarios preserve $h_{ij}\ge 0$ across the full run.
+\textbf{Empirical results.}
 \begin{itemize}
-    \item AC+CBF (no PE): $\min_t h_{ij}(t) = +0.073$\,m$^2$ — \emph{the safety contract holds without PE}.
-    \item AC+CBF+PE ($A_e = 0.10\psidotmax$, headline): $+0.093$\,m$^2$.
-    \item Pareto sweep $A_e \in \{0.05, 0.10, 0.20\}\psidotmax$: $h_{ij}^{\min}\in \{+0.081, +0.093, +0.129\}$. PE is monotone-positive on safety in this regime (Fig.~\ref{fig:pareto}); identification rate (left panel) shows non-monotone Pareto trade-off with tracking error (right panel).
-    \item Comm-delay sweep $\tau\in\{0, 5, 20, 50, 100\}$\,ms: $h_{ij}^{\min}\in \{+0.093, +0.095, +0.094, +0.091, +0.089\}$ — \emph{uniformly above the safety boundary across the full delay range}. The analytical R3 latency residual in $\delta_{ij}(t)$ absorbs broadcast delay completely at $K_8$; the $20\times$ latency robustness ($5$\,ms\,$\to 100$\,ms) holds at both $N=4$ and $N=8$.
+    \item Pairwise safety: $\min_{i<j,t} h_{ij}(t) = +1.54$\,m$^2$ — pairwise CBFs hold throughout.
+    \item Obstacle safety: $\min_{i,t} h_{i,\text{obs}}^{\text{obs}}(t) = -0.61$\,m$^2$ during the obstacle-grazing transient; recovered to positive within $0.5$\,s. The Khatib AC-repulsion + HOCBF deflection together absorb the geometric conflict; the slack penalty handles the brief transient. The obstacle CBF is fully positive after $t \approx 2.5$\,s.
+    \item Static rendezvous: $\max_i |v_i(T_f)| = 0.000$\,m/s, $\max_i |r_i(T_f) - r_i^\star| < 0.01$\,m — exact equilibrium.
+    \item Identification: $|\thethat_i(T_f) - 1/\lambda_i| \le 0.03$ for all $i$ under PE injection.
 \end{itemize}
 
-\textbf{Safety vs identification, decoupled.} The CBF safety contract (forward invariance of $\{h_{ij}\ge 0\}$) is satisfied unconditionally by the QP-resolvent, both at the relative-degree-drop loci of §\ref{sec:example} (Fig.~\ref{fig:headon}, both panels deflect) and at the rotating-ring rosette (Fig.~\ref{fig:trajectories}, all three panels safe under the filter). PE serves the \emph{identification} contract ($\hat\theta_i \to 1/\lambda_i$, Fig.~\ref{fig:param}) and accelerates the scalar Fisher information $\bar\rho_i$ (Fig.~\ref{fig:identifiability}); it is not required for safety. The framework cleanly separates the safety and identification contracts rather than coupling them through PE.
+\textbf{Safety vs identification, decoupled.} The pairwise CBF safety contract (forward invariance of $\{h_{ij}\ge 0\}$) holds unconditionally throughout the diamond demo, including before, during, and after the obstacle-grazing phase. The transient obstacle-CBF dip is geometric (every cross-swap path crosses the obstacle bubble) and is recovered by the Khatib + HOCBF mechanism without compromising pairwise safety or rendezvous convergence. PE serves the \emph{identification} contract ($\thethat_i \to 1/\lambda_i$); it is not required for safety. The framework cleanly separates the two contracts rather than coupling them through PE.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{../output/v17/figure_1_trajectories.pdf}
-\caption{$N=8$ rotating-ring rosette trajectories under three scenarios (Sepulchre-Paley-Leonard~\cite{sepulchrePaleyLeonard2007} phase-locked CCW rotation at $\omega = V_0/R = 1/3$\,rad/s). \textbf{Left (AC, no filter):} agents collide ($\min h_{ij} = -0.06$\,m$^2$). \textbf{Centre (AC+CBF, no PE):} the QP-resolvent maintains the rotating ring in formation with $\min h_{ij} = +0.073$\,m$^2$ — \emph{safety holds without PE}. \textbf{Right (AC+CBF+PE, headline):} PE injection on the binary freedom cone adds identification-relevant signal without compromising safety, $\min h_{ij} = +0.093$\,m$^2$. The rotating-ring formation cohesion uses $K_F=8$ (vs. $K_F=0.3$ for the §\ref{sec:example} cross-swap proof example) to compensate for LOE heterogeneity-induced radial drift on the moving formation.}
-\label{fig:trajectories}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{../output/v17/figure_2_param_convergence.pdf}
-\caption{Parameter convergence $|\thethat_i(t) - 1/\lambda_i|$ for the $N=8$ rosette demo. The spread of curves verifies the §\ref{sec:lyap} Lyapunov reduction: under the rosette's $D_8 \ltimes U(1)^8$ symmetry the agents are permutation-equivalent up to phase.}
-\label{fig:param}
-\end{figure*}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{../output/v17/figure_3_identifiability.pdf}
-\caption{Running scalar identifiability gain $\rhobar_i(t) \in [0, 1)$ on the binary freedom cone, validating the Birkhoff time-averaging.}
-\label{fig:identifiability}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{../output/v17/figure_4_safety.pdf}
-\caption{Safety margin on the $N=8$ rotating-ring rosette ($\binom{8}{2}=28$ HOCBF pairs). \textbf{Top:} mean $h_{ij}(t)$ — formation grows wider as agents rotate. \textbf{Middle (zoom near safe-set boundary):} $\min_{ij} h_{ij}(t)$ stays well above the safe-set boundary $h=0$, with margin $\zeta = 0.5\rsafe^2 = 0.080$\,m$^2$ approached around $t\in [10, 14]$\,s and recovered by $t=16$\,s. The $\sqrt{28}\approx 5.3\times$ exact-penalty scaling (Bertsekas~\S5.4~\cite{bertsekas1999}) is absorbed by $M=10^5$. \textbf{Bottom:} KB covariance $P_i(t)$ decays multi-decade per Anderson 1985~\cite{anderson1985}, with PE-engaged agents (post-$t=10$\,s) showing accelerated decay.}
-\label{fig:safety}
-\end{figure}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{../output/v17/figure_5_ae_sweep.pdf}
-\caption{Pareto sweep over $A_e \in \{0, 0.05, 0.10, 0.20\}\psidotmax$ at $N=8$.}
-\label{fig:pareto}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{../output/v17/figure_6_comm_delay.pdf}
-\caption{Communication-delay robustness sweep $\tau \in \{0, 5, 20, 50, 100\}$\,ms at $N=8$ (28 pairs, $K_8$) on the rotating-ring rosette. The §3.1.2 R3 latency residual in $\delta_{ij}(t)$ \emph{fully absorbs} broadcast delay: $h_{ij}^{\min}\in \{+0.093, +0.095, +0.094, +0.091, +0.089\}$\,m$^2$ — uniformly above the $\zeta=0.080$\,m$^2$ margin target across the full sweep. \textbf{The $20\times$ latency-robustness factor ($5$\,ms\,$\to 100$\,ms) holds at $N=8$ on the rotating-ring rosette and at $N=4$ on the cross-swap.} Engineering implication: robust to Wi-Fi and LTE-class latencies at $N=8$ without modification.}
-\label{fig:comm-delay}
-\end{figure*}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{../output/v17/figure_7_headon_filippov.pdf}
-\caption{$N=2$ head-on relative-degree-drop demonstration (\S\ref{sec:example}.1): both panels show the QP-resolvent \emph{deflecting} the agents off the locus $D_{12}$ regardless of PE. The slack penalty $M=10^4$ absorbs the constraint deficit during the on-locus interval, after which $|a_{11}|$ accumulates above $\eta_a^{\text{practical}}\approx 1.6$ and the safety filter regains full turn-rate authority. PE (right panel) does not affect the safety property — it changes the post-deflection trajectory and accelerates identification. The Lemma~\ref{lem:dwell} on-locus dwell-time $\tau_d \gtrsim 1$\,ms is the analytical guarantee, independent of PE.}
-\label{fig:headon}
-\end{figure}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{../output/v17/figure_obstacle_demo.pdf}
-\caption{$N=4$ vehicles + 2 static circular obstacles, AC reference with Khatib 1986~\cite{khatib1986} potential-field repulsion + HOCBF safety filter. \textbf{Left (AC):} 4 vehicles drive east through an obstacle field; the weak ($K_{\text{obs}}=4$) potential-field repulsion in the AC reference is insufficient — vehicle 1 hits the upper obstacle and vehicle 2 hits the lower obstacle, $h_{\min}=-0.28$\,m$^2$. \textbf{Centre (AC+CBF):} the HOCBF safety filter visibly deflects vehicles 1 (blue, around upper obstacle) and 2 (green, around lower obstacle); $h_{\min}=+0.03$\,m$^2$ — \emph{filter saves the day}. \textbf{Right (AC+CBF+PE):} similar deflection with PE injection added; $h_{\min}=+0.04$\,m$^2$, identification continues. The h-min(t) inset traces show the AC red-dip vs CBF green-throughout safety story unambiguously.}
-\label{fig:obstacle}
+\includegraphics[width=\textwidth]{../output/v18/figure_diamond_v18.pdf}
+\caption{Diamond cross-swap rendezvous around a central obstacle, $N=4$ bounded-acceleration vehicles. Vehicles depart at rest from the outer-square corners $\{-5\!-\!5j,\ 5\!-\!5j,\ 5\!+\!5j,\ -5\!+\!5j\}$ and converge to the cross-swap diamond targets $\{3j,\ -3,\ -3j,\ 3\}$ around an obstacle of radius $1$\,m at the origin. \textbf{Top-left:} XY trajectories — every cross-swap path crosses the obstacle bubble; the Khatib AC-repulsion + HOCBF deflection together route the vehicles around it. \textbf{Top-right:} pairwise minimum $h_{ij}(t)$ — well above the safe-set boundary throughout ($\min = +1.54$\,m$^2$). \textbf{Bottom-left:} obstacle minimum $h_{i,\text{obs}}^{\text{obs}}(t)$ — brief grazing dip during the approach phase, recovered to positive by $t\approx 2.5$\,s. \textbf{Bottom-right:} parameter error $|\thethat_i - 1/\lambda_i|$ converging exponentially to $\le 0.03$ under PE. Final velocities $\max_i |v_i(T_f)| = 0.000$\,m/s — exact static rendezvous, infeasible at constant speed (Poincar\'e--Bendixson), enabled by the bounded-acceleration plant of \S\ref{sec:plant}.}
+\label{fig:diamond}
 \end{figure*}
 
 \section{Discussion}
-The construction composes \textbf{eleven} pre-1985 classical objects: Nagumo's viability theorem (1942)~\cite{nagumo1942} + Aubin--Cellina (1984) §5.1 second-order tangent cone~\cite{aubinCellina1984}, Filippov (1960) regularisation~\cite{filippov1960}, the Moreau (1965/1971/1977) prox/sweeping triplet~\cite{moreau1965,moreau1971,moreau1977}, Brezis (1973)~\cite{brezis1973}, Noether (1918)~\cite{noether1918} + Klein (1872)~\cite{klein1872} + Lie (1880s)~\cite{lie1880s} + Weyl (1918)~\cite{weyl1918} gauge structure, Hilbert--Courant (1924)~\cite{hilbertCourant1924} + Kirchhoff (1847)~\cite{kirchhoff1847} for the formation Laplacian, Krasovskii (1959)~\cite{krasovskii1959} UUB, Krasnosel'skii--Pokrovskii (1989) play operator~\cite{krasnoselskii1989} + Davis (1984) PDMP~\cite{davis1984}, Birkhoff (1931) ergodic theorem~\cite{birkhoff1931}, Whitney (1965)~\cite{whitney1965} + Fisher (1925)~\cite{fisher1925} + Rao (1945)~\cite{rao1945} + Amari (1985)~\cite{amari1985} for the constrained Fisher information, and Tikhonov (1952)~\cite{tikhonov1952} singular perturbation. The mathematical machinery is pre-1985 in its entirety; the contribution is the engineering observation that these objects compose---the safety filter is a Maxwell-governor (1868)~\cite{maxwell1868} on the AC command, and the convergence rate is the constrained Cram\'er--Rao bound on the binary freedom cone.
+The construction composes pre-1985 classical objects: Nagumo's viability theorem (1942)~\cite{nagumo1942} + Aubin--Cellina (1984) §5.1 second-order tangent cone~\cite{aubinCellina1984}, the Moreau (1965/1971/1977) prox/sweeping triplet~\cite{moreau1965,moreau1971,moreau1977}, Brezis (1973)~\cite{brezis1973}, Pontryagin (1962)~\cite{pontryagin1962} bounded-control double integrator, Khatib (1986)~\cite{khatib1986} potential-field repulsion, Noether (1918)~\cite{noether1918} + Klein (1872)~\cite{klein1872} + Lie (1880s)~\cite{lie1880s} + Weyl (1918)~\cite{weyl1918} gauge structure, Hilbert--Courant (1924)~\cite{hilbertCourant1924} + Kirchhoff (1847)~\cite{kirchhoff1847} for the formation Laplacian, Krasovskii (1959)~\cite{krasovskii1959} UUB, Krasnosel'skii--Pokrovskii (1989) play operator~\cite{krasnoselskii1989} + Davis (1984) PDMP~\cite{davis1984}, Birkhoff (1931) ergodic theorem~\cite{birkhoff1931}, Whitney (1965)~\cite{whitney1965} + Fisher (1925)~\cite{fisher1925} + Rao (1945)~\cite{rao1945} + Amari (1985)~\cite{amari1985} for the constrained Fisher information, and Tikhonov (1952)~\cite{tikhonov1952} singular perturbation. The mathematical machinery is pre-1985 in its entirety; the contribution is the engineering observation that these objects compose---the safety filter is a Maxwell-governor (1868)~\cite{maxwell1868} on the AC command, and the convergence rate is the constrained Cram\'er--Rao bound on the binary freedom cone.
+
+\textbf{Relation to \cite{maldonadoAnnaswamy2025}.} The single-agent constant-speed Dubins formulation of \cite{maldonadoAnnaswamy2025} provided the scalar Pomet--Praly adaptive law and the Cram\'er--Rao identifiability framing for the single-vehicle LOE problem. The present work extends to: (i)~the multi-agent setting with HOCBF safety on $\binom{N}{2}$ pairs and $K$ static obstacles, (ii)~the bounded-acceleration plant of \S\ref{sec:plant} which removes the Poincar\'e--Bendixson obstruction to static rendezvous and the relative-degree-drop locus on the head-on configuration, and (iii)~the constrained Fisher information on the binary freedom cone (cruising vs.\ active-pair) under the QP-resolvent's Whitney stratification of the closed-loop measure. The bounded-acceleration relaxation is conservative — every constant-speed trajectory of \cite{maldonadoAnnaswamy2025} is a constraint-saturated trajectory of \eqref{eq:plant} — so the present plant strictly contains the prior plant.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
