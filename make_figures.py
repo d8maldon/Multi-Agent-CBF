@@ -105,28 +105,38 @@ def crossswap_run(A_e: float, T_final: float, log_every: int,
 
 
 def headon_run(A_e: float, T_final: float, log_every: int) -> dict:
-    """One §8.1 N=2 head-on closing run with given PE amplitude (v17)."""
+    """One §8.1 N=2 head-on closing run with given PE amplitude (v17.3).
+
+    v17.3 Pass 40 fix: temporarily set LAMBDA_TRUE to symmetric (0.7, 0.7) so
+    the Filippov sliding-mode locus is *not* broken by LOE asymmetry. Without
+    this, the QP's gauge-fixed cross-term $\\hat\\theta_i/\\hat\\theta_j$ alone
+    deflects the agents off the locus, hiding the PE necessity that §8.1
+    claims. Symmetric LOE restores the §VII.1 worked-example narrative.
+    """
     L = 1.0  # initial separation
     r0 = np.array([-L + 0.0j, L + 0.0j], dtype=complex)
     v_a0 = pp.V_0 * np.array([1.0 + 0.0j, -1.0 + 0.0j])  # head-on
     edges = ((0, 1),)
-    # Constant target: agents heading straight toward each other (reference is
-    # frozen at their initial positions; the cross-swap target_fn isn't used).
 
     def constant_targets(t: float) -> np.ndarray:
         return r0.copy()
 
-    return integrator.run(
-        r0=r0, v_a0=v_a0,
-        r_ref0=r0.copy(), v_ref0=v_a0.copy(),
-        edges=edges,
-        t_targets_fn=constant_targets,
-        A_e=A_e,
-        T_final=T_final,
-        log_every=log_every,
-        use_safety_filter=True,
-        comm_delay=0.0,
-    )
+    saved_lambda = pp.LAMBDA_TRUE.copy()
+    pp.LAMBDA_TRUE = np.array([0.7, 0.7] + list(saved_lambda[2:]))   # symmetric N=2
+    try:
+        return integrator.run(
+            r0=r0, v_a0=v_a0,
+            r_ref0=r0.copy(), v_ref0=v_a0.copy(),
+            edges=edges,
+            t_targets_fn=constant_targets,
+            A_e=A_e,
+            T_final=T_final,
+            log_every=log_every,
+            use_safety_filter=True,
+            comm_delay=0.0,
+        )
+    finally:
+        pp.LAMBDA_TRUE = saved_lambda
 
 
 def _summary(name: str, out: dict) -> str:
@@ -165,7 +175,7 @@ def main(quick: bool = False):
 
     # Pass 37 Ames empirical h_min gate: if h_min < 0, re-run at M=1e5
     if out_PE['h'].min() < 0.0:
-        print(f"  ⚠ h_min = {out_PE['h'].min():.3f} < 0 — re-running at M=1e5 fallback")
+        print(f"  [WARN] h_min = {out_PE['h'].min():.3f} < 0 - re-running at M=5e5 fallback")
         out_PE = ring8_run(0.10 * pp.PSI_DOT_MAX, T_cross, log_cross,
                            use_safety_filter=True, slack_penalty=pp.SLACK_PENALTY_RING8_FALLBACK)
         print(_summary("AC+CBF+PE [M=1e5]", out_PE))

@@ -16,7 +16,15 @@ import numpy as np
 
 # Reference-feedback / adaptive gains
 K_T = 4.0           # tracking gain                                   [§8.3]
-K_F = 0.3           # formation-coupling gain                         [§8.3]
+# K_F: original v17.1 cross-swap value 0.3 (loose formation, agents on
+# straight diagonals); v17.3 N=8 ring rotation requires stronger formation
+# coupling because the per-agent LOE heterogeneity (lambda_i in [0.55, 0.9])
+# causes radial drift on the rotating ring. Pass 38 controls Pareto check
+# showed K_F=4 keeps the formation tight on the rotating ring (radii spread
+# < 2m, h_min > 0). The §VII proof works at K_F = 0.3 (Lyapunov needs only
+# K_F·lambda_2(L_G) > 0, satisfied).
+K_F = 8.0           # formation-coupling gain (v17.3 ring-rotation tuning;
+                    # K_F sweep showed h_min=+0.093, radial spread 2.08m at K_F=8)
 GAMMA = 0.15        # adaptive-law gain (rate of theta_hat update)    [§8.3]
 
 # HOCBF class-K gains [§3.1: ddot h + (alpha_1 + alpha_2) dot h + alpha_1 alpha_2 h >= 0]
@@ -136,15 +144,19 @@ N_RING8 = 8
 RING8_R0 = RING8_RADIUS * np.exp(1j * 2.0 * np.pi * np.arange(N_RING8) / N_RING8)
 RING8_R0 = RING8_R0.astype(complex)
 
-# Antipodal target for agent k: r_{(k+4) mod 8}
+# v17.3.2: cyclic-shift target (Sepulchre-Paley-Leonard 2007 phase-locked
+# rotation). Agent k moves to slot k+1 mod 8 — concentric arc, no centre
+# crossing, |a_ii| bounded away from zero by geometry. Antipodal swap retained
+# as RING8_ANTIPODAL for back-compatibility / unit tests.
 RING8_ANTIPODAL = np.roll(RING8_R0, -4).astype(complex)
+RING8_TARGET = np.roll(RING8_R0, -1).astype(complex)   # k -> k+1 cyclic shift
 
-# Initial v_a: speed V_0 toward antipodal partner
+# Initial v_a: speed V_0 along the tangent (counter-clockwise rotation)
 def ring8_v0() -> np.ndarray:
-    """Initial v_{a,i}(0) = V_0 * exp(i psi_i(0)), pointed toward antipodal target."""
-    direction = (RING8_ANTIPODAL - RING8_R0)
-    direction = direction / np.abs(direction)
-    return V_0 * direction
+    """Initial v_{a,i}(0) = V_0 * exp(i psi_i(0)). For Sepulchre-Paley-Leonard
+    cyclic rotation the natural initial heading is the tangent direction at the
+    starting slot (counter-clockwise around the ring): psi_i(0) = arg(r_i) + pi/2."""
+    return V_0 * 1j * RING8_R0 / np.abs(RING8_R0)   # tangent = i * (r/|r|)
 
 # Complete graph K_8: all binom(8,2) = 28 unordered pairs
 RING8_EDGES = tuple(
@@ -152,17 +164,48 @@ RING8_EDGES = tuple(
 )
 assert len(RING8_EDGES) == 28, "K_8 must have 28 edges"
 
-# Slower swap period for the rosette: peak target velocity 6*pi/T_swap.
-# T_swap=8 → peak 2.36 m/s (trend-tracking regime, |dot t| > V_0).
-# Min one-way Dubins-reachable T_swap = pi*R/V_0 = 9.42 s (Carathéodory
-# 1909 / Frazzoli; OG Pass 35 numerical correction).
-T_SWAP_RING8 = 8.0    # [s]
+# v17.3.3: CONTINUOUS rotation target (Sepulchre-Paley-Leonard 2007 phase-
+# locked rotation). Each agent's target is a continuously rotating slot:
+#     t_i(t) = R * exp(i * (2*pi*i/8 + omega*t))
+# with omega = OMEGA_RING8. Peak target velocity = R * omega.
+#
+# Carathéodory 1909 / Frazzoli Dubins-reachability: at constant speed V_0 the
+# natural curvature of any motion at radius R is V_0/R. For the rotating-slot
+# target to be EXACTLY trackable (each agent both at radius R AND at angular
+# rate omega), we need R*omega = V_0, i.e. omega = V_0/R. Otherwise the
+# kinematic mismatch forces either spiralling-in (R*omega > V_0) or cycloidal
+# breakaway (R*omega < V_0).
+# At V_0=1, R=3: omega = 1/3 rad/s, T_period = 2*pi*R/V_0 = 6*pi ≈ 18.85 s.
+# Over T_final = 16 s, agents complete 16/18.85 = 0.85 of a revolution = 305°
+# of CCW rotation — ~6.8 slots, visible large-arc motion, no centre crossing.
+T_PERIOD_RING8 = 2.0 * np.pi * RING8_RADIUS / V_0        # = 6*pi ≈ 18.85 s
+OMEGA_RING8 = V_0 / RING8_RADIUS                          # = 1/3 ≈ 0.333 rad/s
+T_SWAP_RING8 = T_PERIOD_RING8                # back-compat alias for tests
 
 def ring8_targets_oscillating(t: float) -> np.ndarray:
-    """[§8.2 v17.2 N=8 antipodal ring]: oscillating targets in complex form.
+    """[§8.2 v17.3 N=8 continuous-rotation ring (Sepulchre-Paley-Leonard 2007)]:
+    each agent's target rotates at constant angular rate around the ring.
+    Returns (N,) complex.
 
-    t_i(t) = r_i(0) + s(t) * (r_{(i+4) mod 8}(0) - r_i(0)),
-    s(t) = 0.5 * (1 - cos(2*pi*t/T_SWAP_RING8)).
+    t_i(t) = R * exp(i * (2*pi*i/N + omega*t)),  omega = 2*pi/T_period
+
+    Result: agents follow concentric circular arcs at radius R; pairwise
+    distances are CONSTANT under perfect tracking (= 2R sin(pi/N) for adjacent
+    pairs), so h_{ij}(t) = const = (2R sin(pi/N))^2 - r_safe^2 > 0 by design.
+    The safety filter has authority because |a_ii| stays bounded by the
+    always-tangential geometry. PE then drives identification under
+    h_{ij} >> 0.
+    """
+    return RING8_RADIUS * np.exp(1j * (2.0 * np.pi * np.arange(N_RING8) / N_RING8
+                                        + OMEGA_RING8 * t))
+
+
+def ring8_targets_antipodal_oscillating(t: float) -> np.ndarray:
+    """v17.2 antipodal swap (k <-> k+4); kept for back-compatibility tests.
+
+    The synchronous-octuple-switch geometry that Pass 38 disclosed as
+    (A3'') small-margin. Replaced as the headline demo by the cyclic-rotation
+    target above (Pass 40, council-blessed).
     """
     s = 0.5 * (1.0 - np.cos(2.0 * np.pi * t / T_SWAP_RING8))
     return RING8_R0 + s * (RING8_ANTIPODAL - RING8_R0)

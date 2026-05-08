@@ -90,16 +90,19 @@ def _delayed_view(state: State, comm_delay: float) -> tuple:
 
 
 def _compute_u_2_ref(r_ref: np.ndarray, v_a: np.ndarray, t_targets: np.ndarray,
-                     edges: tuple) -> np.ndarray:
+                     edges: tuple,
+                     t_targets_dot: np.ndarray = None) -> np.ndarray:
     """Compute u_2^ref[i] for all agents via paper §2.3 reference-feedback law.
 
     1. v_des = formation-feedback complex velocity (capped at V_0).
+       v17.3: with optional feedforward t_targets_dot, v_des includes the
+       target's instantaneous velocity for exact tracking of moving formations.
     2. u_2^ref = heading-PD command toward v_des direction, clipped to psi_dot_max.
 
     The reference Dubins agent (r_ref, v_ref) tracks v_des through u_2^ref;
     the heading-PD law is implemented in dyn.reference_turn_rate.
     """
-    v_des = dyn.reference_velocity(r_ref, t_targets, edges)
+    v_des = dyn.reference_velocity(r_ref, t_targets, edges, t_targets_dot)
     return dyn.reference_turn_rate(v_a, v_des)
 
 
@@ -122,7 +125,11 @@ def _eval(state: State,
 
     # === 1. Targets and reference command ===
     t_now = t_targets_fn(state.t)                               # (N,) complex
-    u_2_ref = _compute_u_2_ref(state.r_ref, state.v_a, t_now, edges)
+    # v17.3: feedforward target velocity via central finite difference
+    # for moving-formation tracking (Pomet-Praly velocity feedforward).
+    _eps = 1e-3
+    t_dot = (t_targets_fn(state.t + _eps) - t_targets_fn(state.t - _eps)) / (2.0 * _eps)
+    u_2_ref = _compute_u_2_ref(state.r_ref, state.v_a, t_now, edges, t_dot)
     u_2_AC = state.theta_hat * u_2_ref                           # (N,) real
 
     # === 2. Communication-delayed broadcast view (axiom (A4) v17) ===
@@ -176,13 +183,24 @@ def _eval(state: State,
             pe_projected[i] = dyn.excitation_signal(state.t, omegas[i], phases[i], A_e)
 
     # === 6. Per-agent QP solve (Moreau prox) ===
+    # v17.3 BUGFIX: the QP's `u_2_AC` argument is overloaded — it serves both
+    # as agent i's own target (u_2_AC[i]) and as the cross-term broadcast for
+    # neighbours (u_2_AC[j] for j != i). Previously we passed `us_view` (the
+    # broadcast safe values) for ALL entries, which made agent i's target be
+    # state.last_u_safe[i] (initially zero) instead of theta_hat[i]*u_2_ref[i].
+    # That caused u_2_safe to be stuck at zero in steady state — agents
+    # frozen in place. Fix: construct the per-agent QP input correctly.
     u_2_safe = np.zeros(N)
     slacks_all = []
     for i in range(N):
         r_view, v_view, th_view, us_view = per_agent_view(i)
+        # Build u_2_AC view for the QP: own AC (= theta_hat * u_2_ref) at
+        # index i, broadcast u_safe at the other indices.
+        u_2_qp_input = us_view.copy()
+        u_2_qp_input[i] = u_2_AC[i]
         if use_safety_filter:
             u_i_safe, slacks_i, _ = qpr.solve_qp(
-                i, r_view, v_view, th_view, us_view, pe_projected[i],
+                i, r_view, v_view, th_view, u_2_qp_input, pe_projected[i],
                 pair_active, edges, delta_ij, solver_cache,
             )
             u_2_safe[i] = u_i_safe
