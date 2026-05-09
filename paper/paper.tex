@@ -188,13 +188,13 @@ Fig.~\ref{fig:diamond} validates the construction on the diamond cross-swap rend
 
 \textbf{Empirical results.}
 \begin{itemize}
-    \item Pairwise safety: $\min_{i<j,t} h_{ij}(t) = +1.54$\,m$^2$ — pairwise CBFs hold throughout.
-    \item Obstacle safety: $\min_{i,t} h_{i,\text{obs}}^{\text{obs}}(t) = -0.61$\,m$^2$ during the obstacle-grazing transient; recovered to positive within $0.5$\,s. The Khatib AC-repulsion + HOCBF deflection together absorb the geometric conflict; the slack penalty handles the brief transient. The obstacle CBF is fully positive after $t \approx 2.5$\,s.
-    \item Static rendezvous: $\max_i |v_i(T_f)| = 0.000$\,m/s, $\max_i |r_i(T_f) - r_i^\star| < 0.01$\,m — exact equilibrium.
-    \item Identification: $|\thethat_i(T_f) - 1/\lambda_i| \le 0.03$ for all $i$ under PE injection.
+    \item Pairwise safety: $\min_{i<j,t} h_{ij}(t) = +0.93$\,m$^2$ — pairwise CBFs hold throughout, in agreement with Theorem~\ref{thm:main}(1).
+    \item Obstacle safety: $\min_{i,t} h_{i,k}^{\text{obs}}(t) = +0.50$\,m$^2$ — strictly positive throughout. The Nagumo input-feasibility hypothesis (N+) is verified geometrically: cross-swap clearance $\ge 1.59$\,m exceeds the obstacle bubble $r_{\text{obs}} + \rsafe = 0.9$\,m by a $0.69$\,m margin.
+    \item Static rendezvous: $\max_i |v_i(T_f)| = 0.000$\,m/s, $\max_i |r_i(T_f) - r_i^\star| < 0.001$\,m — exact equilibrium.
+    \item Identification (Fig.~\ref{fig:identification}): $|\thethat_i(T_{\text{PE}}) - 1/\lambda_i| < 10^{-4}$ for all $i$ under (W+) recurrent PE; the deterministic Pomet--Praly Lyapunov rate is integration-floor-limited at the v18 RK4 truncation threshold.
 \end{itemize}
 
-\textbf{Safety vs identification, decoupled.} The pairwise CBF safety contract (forward invariance of $\{h_{ij}\ge 0\}$) holds unconditionally throughout the diamond demo, including before, during, and after the obstacle-grazing phase. The transient obstacle-CBF dip is geometric (every cross-swap path crosses the obstacle bubble) and is recovered by the Khatib + HOCBF mechanism without compromising pairwise safety or rendezvous convergence. PE serves the \emph{identification} contract ($\thethat_i \to 1/\lambda_i$); it is not required for safety. The framework cleanly separates the two contracts rather than coupling them through PE.
+\textbf{Safety vs identification, decoupled.} The pairwise CBF safety contract (forward invariance of $\{h_{ij}\ge 0\}$) holds unconditionally throughout the diamond demo. The Khatib + HOCBF mechanism keeps the obstacle CBF strictly positive; PE serves the \emph{identification} contract ($\thethat_i \to 1/\lambda_i$, Fig.~\ref{fig:identification}); it is not required for safety. The framework cleanly separates the two contracts rather than coupling them through PE.
 
 \begin{figure}[t]
 \centering
@@ -206,7 +206,7 @@ Fig.~\ref{fig:diamond} validates the construction on the diamond cross-swap rend
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../output/v18/figure_diamond_v18.pdf}
-\caption{Diamond cross-swap rendezvous around a central obstacle, $N=4$ bounded-acceleration vehicles. Vehicles depart at rest from the outer-square corners $\{-5\!-\!5j,\ 5\!-\!5j,\ 5\!+\!5j,\ -5\!+\!5j\}$ and converge to the cross-swap diamond targets $\{3j,\ -3,\ -3j,\ 3\}$ around an obstacle of radius $1$\,m at the origin. \textbf{Top-left:} XY trajectories — every cross-swap path crosses the obstacle bubble; the Khatib AC-repulsion + HOCBF deflection together route the vehicles around it. \textbf{Top-right:} pairwise minimum $h_{ij}(t)$ — well above the safe-set boundary throughout ($\min = +1.54$\,m$^2$). \textbf{Bottom-left:} obstacle minimum $h_{i,\text{obs}}^{\text{obs}}(t)$ — brief grazing dip during the approach phase, recovered to positive by $t\approx 2.5$\,s. \textbf{Bottom-right:} parameter error $|\thethat_i - 1/\lambda_i|$ converging exponentially to $\le 0.03$ under PE. Final velocities $\max_i |v_i(T_f)| = 0.000$\,m/s — exact static rendezvous, infeasible at constant speed (Poincar\'e--Bendixson), enabled by the bounded-acceleration plant of \S\ref{sec:plant}.}
+\caption{Diamond cross-swap rendezvous around a central obstacle, $N=4$ bounded-acceleration vehicles. Vehicles depart at rest from the outer-square corners $\{-5\!-\!5j,\ 5\!-\!5j,\ 5\!+\!5j,\ -5\!+\!5j\}$ and converge to the cross-swap diamond targets $\{3j,\ -3,\ -3j,\ 3\}$ around a static obstacle of radius $r_{\text{obs}} = 0.5$\,m at the origin. \textbf{Top row:} XY trajectories for AC alone (no filter) and AC+CBF (filter on); both terminate at the diamond targets ($\max_i |v_i(T_f)| = 0.000$\,m/s), enabled by the bounded-acceleration plant of \S\ref{sec:plant} which admits exact static rendezvous (infeasible at constant speed by Poincar\'e--Bendixson). \textbf{Bottom row:} $\min_{ij,k} h(t)$ over all pairwise + obstacle CBFs — strictly positive throughout under the safety filter ($\min = +0.50$\,m$^2$, dominated by the obstacle CBF during the cross-swap approach $t \in [1, 2.5]$\,s; pairwise $h_{ij} \ge +0.93$\,m$^2$ throughout). The Khatib AC-repulsion + HOCBF deflection together route the vehicles around the obstacle; (N+) Nagumo input-feasibility holds geometrically by the $0.69$\,m clearance margin (cross-swap clearance $1.59$\,m $-$ bubble $0.9$\,m).}
 \label{fig:diamond}
 \end{figure*}
 
