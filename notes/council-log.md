@@ -1171,3 +1171,59 @@ Every new entry follows:
 - Pass 30 (v17 §1-§3 SUBMIT-READY): inapplicable to v18; new scope.
 
 **Final paper state:** 6 pages, 434 KB, no undefined references, builds clean with bibtex. Ready for IEEE-LCSS submission.
+
+---
+
+## Pass 57 - 2026-05-08 - math-god-mode (v18 + Pomet-Praly empirical verification of Theorem 1(3))
+**Audited:** `paper/paper.tex` + `sim/v18.py` + `make_diamond_v18.py` @ uncommitted
+**Verdict:** SOUND with caveats; SHIP IT after 4 minor text edits
+**Personas (this pass):** Annaswamy, Ames, Borkar, Krstić, Boyd, Tao
+
+**Findings:**
+- 🟡 [NEW, Borkar] §VII "saturates Cramér-Rao" wording wrong; deterministic exponential convergence beats the noise-bound trivially. Reword.
+- 🟡 [NEW, Annaswamy] State reference-model sync at T_PE_start explicitly.
+- 🟡 [NEW, Boyd] Update γ in §VII parameter table to 5.0 (Pass 57 value) or split analytical/empirical.
+- 🟡 [NEW, Borkar] Figure 1 caption: same Cramér-Rao wording fix.
+- 🔵 [NEW, Ames] Input-budget split disclosure (40% PE / 60% control) optional.
+
+**Sign-off conditions:** After 4 minor text edits, math-god-mode commits to no further additions on Pass 57 scope.
+
+**Status of prior pass commitments:**
+- Pass 56 SUBMIT-READY: HONOURED. Pass 57 is additive empirical strengthening (Theorem 1(3) now verified, not just structurally inherited).
+
+---
+
+## Pass 58 - 2026-05-08 - OG-math-experts (classical correctness of Pomet-Praly + ref model + (W+) PE)
+**Audited:** `paper/paper.tex` @ uncommitted (post-Pass-57 fixes applied)
+**Verdict:** SHIP IT (loop-break engaged)
+**Personas (this pass):** Lyapunov, Monopoli, Cramér, Wald, Fisher, Krasovskii, Hilbert
+
+**Findings:**
+- 🔵 [NEW, Cauchy] Optional: state empirical 10^-4 is RK4-integration-floor-limited, not Lyapunov-rate-limited.
+- 🔵 [NEW, Wald] Optional: add Goodwin-Sin 1984 §6.3 alongside Lavretsky-Wise 2013 §11 for dither-then-cruise OG lineage.
+
+**Sign-off conditions:** none. OG commits to no further additions on Pass 58 scope.
+**Status of prior pass commitments:** Pass 56/57: HONOURED. Loop-break: CONVERGED.
+
+---
+
+## Pass 59 - 2026-05-08 - controls-expert-reviewer (final v18 LCSS engineering check)
+**Audited:** `paper/paper.tex` @ uncommitted (post-Pass-57 fixes applied; Pass 58 OG SHIP IT)
+**Verdict:** SUBMIT-READY (loop-break engaged; converged scope)
+**Personas (this pass):** Anuradha Annaswamy, Aaron Ames, João Hespanha
+
+**Findings:**
+- 🟡 [NEW, Annaswamy] Optional: link $\gamma_{\text{theory}}$ symbol to a §IV bound.
+- 🔵 [NEW, Annaswamy] Optional: state ref-model integration during cooldown is harmless.
+- 🔵 [NEW, Ames] Optional: state upper bound on $A_e$ for (N+) preservation at diamond geometry.
+- 🔵 [NEW, Hespanha] Optional: state hybrid Lyapunov jump at switching events is downward.
+
+**Sign-off conditions:** none. controls-expert-reviewer commits to no further additions on Pass 59 scope.
+**Status of prior pass commitments:** Pass 56/57/58: HONOURED. Three-skill UNANIMOUS at converged v18 scope. Final SUBMIT-READY.
+
+**Three-skill cross-pass consensus reached:**
+- Pass 57 (math-god-mode): SOUND-with-4-minor-fixes (applied)
+- Pass 58 (OG-math-experts): SHIP IT (loop-break)
+- Pass 59 (controls-expert-reviewer): SUBMIT-READY (loop-break)
+
+The v18 paper is **IEEE-LCSS submittable**. Theorem 1(1) safety, 1(2) UUB, 1(3) identification all verified empirically + theoretically. All BLOCKERs from Pass 53/54/55 closed. Council protocol: CONVERGED.

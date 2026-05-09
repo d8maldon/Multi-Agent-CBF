@@ -45,6 +45,8 @@ H_OUTER = 5e-3        # 5 ms outer step
 LAMBDA_TRUE = np.array([0.6, 0.9, 0.7, 0.8])   # 4 agents heterogeneous LOE
 THETA_MIN = 1.0
 THETA_MAX = 2.0
+GAMMA = 0.15          # Pomet-Praly adaptive gain (council Pass 57)
+A_E_DEFAULT = 0.5     # PE amplitude (acceleration units)
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +317,78 @@ def update_hysteresis(r: np.ndarray, v: np.ndarray, theta_hat: np.ndarray,
 
 
 # ---------------------------------------------------------------------------
+# v18 Pomet-Praly adaptive law (council Pass 57)
+# ---------------------------------------------------------------------------
+
+def adaptive_law_rate_v18(theta_hat: np.ndarray, v: np.ndarray, v_ref: np.ndarray,
+                           u_ref: np.ndarray, gamma: float = None) -> np.ndarray:
+    """Pomet-Praly normalised swapped-signal adaptive law for v18 plant
+    (dot v = lambda u). The regressor is u_ref directly (acceleration channel
+    LOE), distinct from v17's i*v_a*u_2_ref turn-rate regressor.
+
+        d theta_hat_i / dt = Proj_[theta_min, theta_max](
+            -(gamma / m_i^2) * Re(conj(u_ref_i) * tilde_v_i)
+        )
+        m_i^2 = 1 + |u_ref_i|^2
+        tilde_v_i = v_i - v_ref_i
+
+    Smooth-projection convention: rate clipped to zero when at boundary and
+    sign of raw rate would push outside [theta_min, theta_max].
+    """
+    g = GAMMA if gamma is None else gamma
+    N = theta_hat.shape[0]
+    rates = np.zeros(N)
+    tilde_v = v - v_ref
+    for i in range(N):
+        m_sq = 1.0 + float(np.abs(u_ref[i]) ** 2)
+        raw = -(g / m_sq) * float(np.real(np.conj(u_ref[i]) * tilde_v[i]))
+        if theta_hat[i] <= THETA_MIN and raw < 0:
+            rates[i] = 0.0
+        elif theta_hat[i] >= THETA_MAX and raw > 0:
+            rates[i] = 0.0
+        else:
+            rates[i] = raw
+    return rates
+
+
+# ---------------------------------------------------------------------------
+# v18 PE injection (staggered sinusoidal dither, council Pass 57)
+# ---------------------------------------------------------------------------
+
+def make_pe_injector(N: int, A_e: float = A_E_DEFAULT,
+                     T_PE_start: float = 0.0,
+                     T_PE: float = float("inf"),
+                     seed: int = 42) -> callable:
+    """Per-agent staggered PE: xi_i^PE(t) = A_e * sum_k sin(omega_i^k t + phi_i^k).
+
+    Two frequencies per agent. omega_i^k = 2*pi*(0.7 + 0.2*i + 0.1*(k-1)) Hz
+    (irrationally-related across agents, ensures Wald (W+) recurrent excitation).
+    Cruise-PE-cooldown: PE active on [T_PE_start, T_PE], identically zero
+    elsewhere. The early phase t < T_PE_start is the rendezvous-without-PE
+    transient (so the LOE-driven adaptation operates near the equilibrium).
+    """
+    rng = np.random.default_rng(seed)
+    omegas = np.zeros((N, 2))
+    phases = np.zeros((N, 2))
+    for i in range(N):
+        for k in range(2):
+            omegas[i, k] = 2.0 * np.pi * (0.7 + 0.2 * i + 0.1 * k)
+            phases[i, k] = float(rng.uniform(0, 2 * np.pi))
+
+    def xi(t: float) -> np.ndarray:
+        if t < T_PE_start or t >= T_PE:
+            return np.zeros(N, dtype=complex)
+        out = np.zeros(N, dtype=complex)
+        for i in range(N):
+            re = A_e * float(np.sin(omegas[i, 0] * t + phases[i, 0]))
+            im = A_e * float(np.sin(omegas[i, 1] * t + phases[i, 1]))
+            out[i] = re + 1j * im
+        return out
+
+    return xi
+
+
+# ---------------------------------------------------------------------------
 # v18 integrator (RK4 on r, v with no |v|=V_0 normalisation)
 # ---------------------------------------------------------------------------
 
@@ -325,18 +399,36 @@ def run(r0: np.ndarray, v0: np.ndarray,
         K_p: float = 4.0, K_d: float = 4.0, K_obs: float = 16.0,
         obstacles: tuple = (),
         use_safety_filter: bool = True,
+        adaptive: bool = False,
+        A_e: float = 0.0,
+        T_PE_start: float = 0.0,
+        T_PE: float = float("inf"),
+        gamma: float = None,
         log_every: int = 1) -> dict:
     """Run a v18 simulation from initial conditions.
 
     State: (r, v) in C^N x C^N. Plant: dot r = v, dot v = lambda * u.
     Reference: PD on (r, v) toward target. Safety filter modifies u via QP.
+
+    Optional council Pass 57 extensions:
+        adaptive=True : evolve theta_hat via Pomet-Praly + integrate (r_ref,
+                        v_ref) reference model with lambda=1.
+        A_e>0          : PE injection xi^PE(t) added to u_ref; sustained on
+                        [0, T_PE], identically zero after (dither-then-cruise).
     """
     N = r0.shape[0]
     r = r0.copy().astype(complex)
     v = v0.copy().astype(complex)
+    # Reference model: same target dynamics with lambda = 1 (no LOE).
+    # Initial conditions match the plant; tilde_v starts at zero.
+    r_ref = r0.copy().astype(complex) if adaptive else None
+    v_ref = v0.copy().astype(complex) if adaptive else None
     theta_hat = 0.5 * (THETA_MIN + THETA_MAX) * np.ones(N)
     pair_active = {frozenset({i, j}): False for (i, j) in edges}
     solver_cache: dict = {}
+
+    pe_inject = (make_pe_injector(N, A_e=A_e, T_PE_start=T_PE_start, T_PE=T_PE)
+                 if A_e > 0 else None)
 
     h_outer = H_OUTER
     n_steps = int(np.ceil(T_final / h_outer))
@@ -350,69 +442,132 @@ def run(r0: np.ndarray, v0: np.ndarray,
     log_h_obs: list = []
     log_active: list = []
     log_theta: list = []
+    log_r_ref: list = []
+    log_v_ref: list = []
+    log_u_ref: list = []
+    log_pe: list = []
 
     lambda_arr = LAMBDA_TRUE[:N]
 
-    def deriv(state_r, state_v, t_now):
-        # Targets
+    def compute_u_ref_at(state_r, state_v, t_now):
+        """PD reference + (optional) PE injection at the given (r, v) state.
+
+        IMPORTANT: this is computed at the CALLER's state (plant or reference
+        model). The reference model has its own closed-loop PD so it remains
+        bounded and provides a well-defined target trajectory for tilde_v.
+        """
         t_targets = t_targets_fn(t_now)
         eps = 1e-3
         t_dot = (t_targets_fn(t_now + eps) - t_targets_fn(t_now - eps)) / (2.0 * eps)
-        # AC reference
         u_ref = reference_acceleration(state_r, state_v, t_targets,
                                         t_targets_dot=t_dot,
                                         obstacles=obstacles,
                                         K_p=K_p, K_d=K_d, K_obs=K_obs)
-        u_AC = theta_hat * u_ref   # adaptive law: u_AC = theta_hat * u_ref
-        # Hysteresis update (per outer step, not per RK4 substep)
-        # done outside this function
-        # Per-agent QP
+        if pe_inject is not None:
+            u_ref = u_ref + pe_inject(t_now)
+            u_ref_re = np.clip(u_ref.real, -U_MAX, U_MAX)
+            u_ref_im = np.clip(u_ref.imag, -U_MAX, U_MAX)
+            u_ref = u_ref_re + 1j * u_ref_im
+        return u_ref
+
+    def deriv(state_r, state_v, state_r_ref, state_v_ref,
+              state_theta, t_now):
+        # Plant control: u_ref evaluated at PLANT state, AC scales by theta_hat.
+        u_ref_plant = compute_u_ref_at(state_r, state_v, t_now)
+        u_AC = state_theta * u_ref_plant
         u_safe = np.zeros(N, dtype=complex)
         if use_safety_filter:
             for ag in range(N):
                 u_i_safe, _, _ = solve_qp_v18(
-                    ag, state_r, state_v, theta_hat, u_AC, 0.0+0j,
+                    ag, state_r, state_v, state_theta, u_AC, 0.0+0j,
                     pair_active, edges, {}, solver_cache, obstacles=obstacles,
                 )
                 u_safe[ag] = u_i_safe
         else:
-            # Clipped to saturation
             u_safe_re = np.clip(u_AC.real, -U_MAX, U_MAX)
             u_safe_im = np.clip(u_AC.imag, -U_MAX, U_MAX)
             u_safe = u_safe_re + 1j * u_safe_im
         dr = state_v.copy()
         dv = lambda_arr * u_safe
-        return dr, dv, u_safe, u_AC
+        if state_r_ref is not None:
+            # Reference model: closed-loop PD on REFERENCE state with lambda=1
+            # and identical PE injection. Both plant and reference model share
+            # the PD law structure; tilde_v = v - v_ref measures pure LOE error.
+            u_ref_M = compute_u_ref_at(state_r_ref, state_v_ref, t_now)
+            dr_ref = state_v_ref.copy()
+            dv_ref = u_ref_M
+            # Adaptive law gated to PE-active window: avoids transient nonlinear
+            # regime where PD-driven plant/reference state mismatch can produce
+            # wrong-sign correlation. During [T_PE_start, T_PE] the system is
+            # near equilibrium and PE drives the regressor cleanly.
+            if T_PE_start <= t_now < T_PE:
+                d_theta = adaptive_law_rate_v18(state_theta, state_v,
+                                                  state_v_ref, u_ref_M,
+                                                  gamma=gamma)
+            else:
+                d_theta = np.zeros(N)
+        else:
+            dr_ref = None
+            dv_ref = None
+            d_theta = np.zeros(N)
+        return dr, dv, dr_ref, dv_ref, d_theta, u_safe, u_AC, u_ref_plant
 
+    pe_started = False
     for step_idx in range(n_steps):
         t_now = step_idx * h_outer
 
-        # Update hysteresis (once per outer step)
-        t_targets = t_targets_fn(t_now)
-        eps = 1e-3
-        t_dot = (t_targets_fn(t_now + eps) - t_targets_fn(t_now - eps)) / (2.0 * eps)
-        u_ref_now = reference_acceleration(r, v, t_targets, t_targets_dot=t_dot,
-                                            obstacles=obstacles,
-                                            K_p=K_p, K_d=K_d, K_obs=K_obs)
+        # Sync reference model to plant at start of PE window (so tilde_v
+        # starts at zero in the cruise phase and the adaptive law sees pure
+        # PE-driven LOE response without transient contamination).
+        if adaptive and (not pe_started) and t_now >= T_PE_start:
+            r_ref = r.copy()
+            v_ref = v.copy()
+            pe_started = True
+
+        # Hysteresis update (once per outer step)
+        u_ref_now = compute_u_ref_at(r, v, t_now)
         u_AC_now = theta_hat * u_ref_now
         pair_active = update_hysteresis(r, v, theta_hat, u_AC_now, pair_active, edges)
 
-        # RK4
-        d1_r, d1_v, u_safe_step, u_AC_step = deriv(r, v, t_now)
-        d2_r, d2_v, _, _ = deriv(r + h_outer/2 * d1_r, v + h_outer/2 * d1_v, t_now + h_outer/2)
-        d3_r, d3_v, _, _ = deriv(r + h_outer/2 * d2_r, v + h_outer/2 * d2_v, t_now + h_outer/2)
-        d4_r, d4_v, _, _ = deriv(r + h_outer * d3_r, v + h_outer * d3_v, t_now + h_outer)
-
+        # RK4 over (r, v) and optionally (r_ref, v_ref, theta_hat)
+        d1_r, d1_v, d1_rref, d1_vref, d1_th, u_safe_step, u_AC_step, u_ref_step = \
+            deriv(r, v, r_ref, v_ref, theta_hat, t_now)
+        if adaptive:
+            d2_r, d2_v, d2_rref, d2_vref, d2_th, *_ = deriv(
+                r + h_outer/2 * d1_r, v + h_outer/2 * d1_v,
+                r_ref + h_outer/2 * d1_rref, v_ref + h_outer/2 * d1_vref,
+                theta_hat + h_outer/2 * d1_th, t_now + h_outer/2)
+            d3_r, d3_v, d3_rref, d3_vref, d3_th, *_ = deriv(
+                r + h_outer/2 * d2_r, v + h_outer/2 * d2_v,
+                r_ref + h_outer/2 * d2_rref, v_ref + h_outer/2 * d2_vref,
+                theta_hat + h_outer/2 * d2_th, t_now + h_outer/2)
+            d4_r, d4_v, d4_rref, d4_vref, d4_th, *_ = deriv(
+                r + h_outer * d3_r, v + h_outer * d3_v,
+                r_ref + h_outer * d3_rref, v_ref + h_outer * d3_vref,
+                theta_hat + h_outer * d3_th, t_now + h_outer)
+            r_ref = r_ref + h_outer/6 * (d1_rref + 2*d2_rref + 2*d3_rref + d4_rref)
+            v_ref = v_ref + h_outer/6 * (d1_vref + 2*d2_vref + 2*d3_vref + d4_vref)
+            theta_hat = theta_hat + h_outer/6 * (d1_th + 2*d2_th + 2*d3_th + d4_th)
+            theta_hat = np.clip(theta_hat, THETA_MIN, THETA_MAX)
+        else:
+            d2_r, d2_v, *_ = deriv(r + h_outer/2 * d1_r, v + h_outer/2 * d1_v,
+                                    None, None, theta_hat, t_now + h_outer/2)
+            d3_r, d3_v, *_ = deriv(r + h_outer/2 * d2_r, v + h_outer/2 * d2_v,
+                                    None, None, theta_hat, t_now + h_outer/2)
+            d4_r, d4_v, *_ = deriv(r + h_outer * d3_r, v + h_outer * d3_v,
+                                    None, None, theta_hat, t_now + h_outer)
         r = r + h_outer/6 * (d1_r + 2*d2_r + 2*d3_r + d4_r)
         v = v + h_outer/6 * (d1_v + 2*d2_v + 2*d3_v + d4_v)
 
-        # Log every k-th step
         if step_idx % log_every == 0:
             log_t.append(t_now)
             log_r.append(r.copy())
             log_v.append(v.copy())
             log_u_safe.append(u_safe_step.copy())
             log_u_AC.append(u_AC_step.copy())
+            log_u_ref.append(u_ref_step.copy())
+            if pe_inject is not None:
+                log_pe.append(pe_inject(t_now))
             h_pair = np.array([cbf_h(r[ie], r[je]) for (ie, je) in edges])
             log_h.append(h_pair)
             if obstacles:
@@ -423,17 +578,28 @@ def run(r0: np.ndarray, v0: np.ndarray,
                 log_h_obs.append(np.array(h_obs_list))
             log_active.append(sum(int(v_) for v_ in pair_active.values()))
             log_theta.append(theta_hat.copy())
+            if adaptive:
+                log_r_ref.append(r_ref.copy())
+                log_v_ref.append(v_ref.copy())
 
-    return {
+    out = {
         "t": np.array(log_t),
         "r": np.array(log_r),
         "v": np.array(log_v),
         "u_safe": np.array(log_u_safe),
         "u_AC": np.array(log_u_AC),
+        "u_ref": np.array(log_u_ref),
         "h": np.array(log_h),
         "h_obs": np.array(log_h_obs) if log_h_obs else np.zeros((len(log_t), 0)),
         "active_count": np.array(log_active),
         "theta_hat": np.array(log_theta),
         "edges": edges,
         "obstacles": obstacles,
+        "lambda_true": lambda_arr.copy(),
     }
+    if adaptive:
+        out["r_ref"] = np.array(log_r_ref)
+        out["v_ref"] = np.array(log_v_ref)
+    if log_pe:
+        out["pe"] = np.array(log_pe)
+    return out

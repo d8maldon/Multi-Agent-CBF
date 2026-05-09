@@ -166,13 +166,18 @@ The empirical demonstration is a 4-vehicle diamond cross-swap rendezvous around 
 
 \textbf{Empirical safety + rendezvous results} (Fig.~\ref{fig:diamond}). Pairwise minimum CBF $\min_{i<j,t} h_{ij}(t) = +0.93$\,m$^2$, obstacle minimum CBF $\min_{i,t} h_{i,k}^{\text{obs}}(t) = +0.50$\,m$^2$ — both strictly positive throughout, in agreement with Theorem~\ref{thm:main}(1). Final velocity $\max_i |v_i(T_f)| = 0.000$\,m/s and final position error $\max_i |r_i(T_f) - r_i^\star| < 0.001$\,m: exact static rendezvous (PE switched off in the cooldown phase $[T_{\text{PE}}, T_f]$ per the trade-off statement following Theorem~\ref{thm:main}). The PD-with-damping reference drives inner-loop tracking to zero in $\sim 6$\,s.
 
-\textbf{Scope of the empirical demonstration.} The numerical run reported in Fig.~\ref{fig:diamond} verifies Theorem~\ref{thm:main}(1) (forward invariance of the safe set, both pairwise and obstacle CBFs strictly positive) and Theorem~\ref{thm:main}(2) (UUB to exact static rendezvous). Theorem~\ref{thm:main}(3) (identification) is structurally preserved by the multi-agent extension: the Pomet--Praly adaptive law is per-agent and decouples across the network, so the single-agent identification rate of \cite{maldonadoAnnaswamy2025} carries over verbatim with the regressor $|u_i^{\text{ref}}|^2$ replacing the constant-speed regressor $V_0^2(u_2^{\text{ref}})^2$ and (W+) Wald recurrent excitation as the new asymptotic-identification hypothesis. Empirical verification of the multi-agent identification rate under PE-engaged dither-then-cruise (Lavretsky--Wise 2013~\S 11~\cite{lavretskyWise2013}) on the v18 plant is deferred to the journal version.
+\textbf{Empirical identification (Fig.~\ref{fig:identification}).} A second run with the same geometry verifies Theorem~\ref{thm:main}(3) under (W+) PE. The protocol is rendezvous-cruise-cooldown (Lavretsky--Wise 2013~\S 11~\cite{lavretskyWise2013}): on $[0, 6]$\,s the agents run pure rendezvous with no PE and no adaptation; on $[6, 58]$\,s the system is at the static-rendezvous attractor, PE injection $\xi_i^{\text{PE}}(t) = A_e \sum_k \sin(\omega_i^k t + \phi_i^k)$ with $A_e = 2.0$ and per-agent staggered frequencies $\omega_i^k/(2\pi) = 0.7 + 0.2 i + 0.1(k{-}1)$\,Hz drives the regressor, the reference model is reinitialised at $r_M(T_{\text{PE,start}}) \!=\! r$, $v_M(T_{\text{PE,start}}) \!=\! v$, and the Pomet--Praly law is gated active; on $[58, 60]$\,s the PE is switched off and $\thethat_i$ is frozen for terminal exact rendezvous. With adaptive gain $\gamma_{\text{adapt}} = 5.0$, the Pomet--Praly normalised swapped-signal adaptive law against a closed-loop reference model with $\lambda = 1$ achieves
+\[
+|\thethat_i(T_{\text{PE}}) - 1/\lambda_i| < 10^{-4}, \qquad i = 1,\dots,4,
+\]
+for $\lambda_i \in \{0.6, 0.9, 0.7, 0.8\}$ (true $1/\lambda_i \in \{1.667, 1.111, 1.429, 1.250\}$). Pairwise $h_{\min} = +0.94$\,m$^2$ and obstacle $h_{\min} = +0.51$\,m$^2$ hold throughout the PE phase: the $A_e/K_p \approx 0.5$\,m residual position oscillation does not violate (N+) because the geometric clearance margin ($1.59 - 0.9 = 0.69$\,m) exceeds the oscillation, and the PE consumes $A_e/u_{\max} = 40\%$ of the input budget leaving the remainder for PD tracking and CBF deflection. The cumulative Fisher information $\mathcal{I}_i([0, T_{\text{PE}}])$ grows linearly in $t$ on the cruise window per Theorem~\ref{thm:main}(3); the empirical convergence is consistent with (and far below) the Cram\'er--Rao bound, since the deterministic Pomet--Praly law converges exponentially in the noiseless setting (Lyapunov rate $\gamma_{\text{adapt}}\rhobar/\lambda_{\max}$), while the Cram\'er--Rao framing (Cram\'er 1946~\S 32.3~\cite{cramer1946}; Anderson 1985~\cite{anderson1985}) applies in the noise-perturbed regime.
 
 \subsection{Simulation parameter values}\label{sec:params}
 \begin{align}
 u_{\max} &= 5\,\text{m/s}^2,\ K_p = 2,\ K_d = 3,\ K_F = 0.5,\nonumber\\
 K_{\text{obs}} &= 4,\ r_{\text{inf}} = 2.5\,\text{m},\nonumber\\
-\gamma &= 0.15,\ \alpha_1 = \alpha_2 = 5,\ \rsafe = 0.4\,\text{m},\nonumber\\
+\gamma_{\text{theory}} &= 0.15,\ \gamma_{\text{adapt}} = 5.0,\ \alpha_1 = \alpha_2 = 5,\ \rsafe = 0.4\,\text{m},\nonumber\\
+A_e &= 2.0,\ T_{\text{PE,start}} = 6\,\text{s},\ T_{\text{PE}} = 58\,\text{s},\nonumber\\
 \varepsilon_{\text{hyst}} &= 0.05\rsafe^2,\ M = 10^4,\ h_{\text{outer}} = 5\,\text{ms},\nonumber\\
 \lambda_{1{:}4} &= (0.6, 0.9, 0.7, 0.8),\ \thmin = 1,\ \thmax = 2.\nonumber
 \end{align}
@@ -190,6 +195,13 @@ Fig.~\ref{fig:diamond} validates the construction on the diamond cross-swap rend
 \end{itemize}
 
 \textbf{Safety vs identification, decoupled.} The pairwise CBF safety contract (forward invariance of $\{h_{ij}\ge 0\}$) holds unconditionally throughout the diamond demo, including before, during, and after the obstacle-grazing phase. The transient obstacle-CBF dip is geometric (every cross-swap path crosses the obstacle bubble) and is recovered by the Khatib + HOCBF mechanism without compromising pairwise safety or rendezvous convergence. PE serves the \emph{identification} contract ($\thethat_i \to 1/\lambda_i$); it is not required for safety. The framework cleanly separates the two contracts rather than coupling them through PE.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../output/v18/figure_diamond_identification.pdf}
+\caption{Theorem~\ref{thm:main}(3) empirical verification on the diamond demo: parameter identification under (W+) recurrent PE. \textbf{Top:} $\thethat_i(t)$ trajectories converging to true $1/\lambda_i$ (dashed). Three phases: $[0, 6]$\,s rendezvous transient (no PE, $\thethat_i$ at projection midpoint $1.5$); $[6, 58]$\,s cruise + PE (orange band, $A_e = 2.0$, $\gamma_{\text{adapt}} = 5.0$); $[58, 60]$\,s PE-off cooldown ($\thethat_i$ frozen). \textbf{Bottom:} $|\thethat_i - 1/\lambda_i|$ on log scale, decaying multi-decade to $< 10^{-4}$ at $T_{\text{PE}}$. The deterministic Pomet--Praly Lyapunov rate is exponential and lies below the Cram\'er--Rao bound (which over-bounds variance only in the noise-perturbed regime, Cram\'er 1946~\S 32.3~\cite{cramer1946}; Anderson 1985~\cite{anderson1985}). The cumulative Fisher information $\mathcal{I}_i([0, T_{\text{PE}}])$ grows linearly on the cruise window.}
+\label{fig:identification}
+\end{figure}
 
 \begin{figure*}[t]
 \centering

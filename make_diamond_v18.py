@@ -59,14 +59,10 @@ AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
 def diamond_run(T_final: float = 14.0,
                 use_safety_filter: bool = True,
                 K_obs: float = 4.0) -> dict:
-    """Run a v18 diamond rendezvous: 4 vehicles, static targets, 1 obstacle.
-
-    K_obs=3 (weak) so AC alone has visible obstacle violation; CBF saves it.
-    For a "filter not needed" version use K_obs=12+.
-    """
+    """Run a v18 diamond rendezvous: 4 vehicles, static targets, 1 obstacle."""
     return v18.run(
         r0=DIAMOND_R0.copy(),
-        v0=np.zeros(4, dtype=complex),    # vehicles start AT REST (v18 capability)
+        v0=np.zeros(4, dtype=complex),
         edges=DIAMOND_EDGES,
         t_targets_fn=diamond_targets_static,
         T_final=T_final,
@@ -74,6 +70,39 @@ def diamond_run(T_final: float = 14.0,
         obstacles=OBSTACLES,
         use_safety_filter=use_safety_filter,
         log_every=2,
+    )
+
+
+def diamond_run_adaptive(T_final: float = 60.0,
+                          T_PE_start: float = 6.0,
+                          T_PE: float = 58.0,
+                          A_e: float = 2.0,
+                          gamma: float = 5.0) -> dict:
+    """Adaptive run: rendezvous-then-PE-then-cooldown protocol (Pass 57).
+
+    [0, T_PE_start]      : rendezvous transient, no PE, no adaptation.
+    [T_PE_start, T_PE]   : cruise phase with PE injection + Pomet-Praly
+                            adaptive law on theta_hat. (W+) Wald recurrent
+                            excitation guarantees cumulative Fisher info
+                            grows linearly.
+    [T_PE, T_final]      : PE-off cooldown, theta_hat frozen, agents return
+                            to exact static rendezvous.
+    """
+    return v18.run(
+        r0=DIAMOND_R0.copy(),
+        v0=np.zeros(4, dtype=complex),
+        edges=DIAMOND_EDGES,
+        t_targets_fn=diamond_targets_static,
+        T_final=T_final,
+        K_p=4.0, K_d=4.0, K_obs=4.0,
+        obstacles=OBSTACLES,
+        use_safety_filter=True,
+        adaptive=True,
+        A_e=A_e,
+        T_PE_start=T_PE_start,
+        T_PE=T_PE,
+        gamma=gamma,
+        log_every=10,
     )
 
 
@@ -164,6 +193,61 @@ def make_figure(out_AC, out_CBF, save_path: Path):
     fig.suptitle("v18 — 4-vehicle static diamond rendezvous "
                   "(complex double-integrator, $\\dot v = \\lambda u$)",
                   fontsize=11, y=0.995)
+    fig.tight_layout()
+    fig.savefig(save_path, bbox_inches="tight")
+    plt.close(fig)
+
+
+def make_identification_figure(out_adapt, save_path: Path,
+                                T_PE_start: float, T_PE: float):
+    """Figure showing parameter identification: theta_hat(t) per agent + the
+    log-error |theta_hat - 1/lambda|. Validates Theorem 1(3) under (W+) PE."""
+    t = out_adapt["t"]
+    th = out_adapt["theta_hat"]
+    lam = out_adapt["lambda_true"]
+    true_inv = 1.0 / lam
+    N = th.shape[1]
+    err = np.abs(th - true_inv[None, :])
+
+    fig, (ax_th, ax_err) = plt.subplots(2, 1, figsize=(8, 5.5), sharex=True)
+    for i in range(N):
+        ax_th.plot(t, th[:, i], color=AGENT_COLOURS[i],
+                   linewidth=1.4, alpha=0.9,
+                   label=fr"vehicle {i} ($\lambda={lam[i]:.2f}$)")
+        ax_th.axhline(true_inv[i], color=AGENT_COLOURS[i],
+                       linestyle="--", linewidth=0.8, alpha=0.5)
+        ax_err.semilogy(t, np.maximum(err[:, i], 1e-6),
+                          color=AGENT_COLOURS[i], linewidth=1.4, alpha=0.9)
+
+    for ax in (ax_th, ax_err):
+        ax.axvspan(T_PE_start, T_PE, color="#fff0e0",
+                    alpha=0.7, zorder=0, label="_nolegend_")
+        ax.grid(True, alpha=0.3)
+
+    ax_th.set_ylabel(r"$\hat{\theta}_i(t)$")
+    ax_th.legend(loc="lower right", fontsize=8, ncol=2)
+    ax_th.set_title(r"Parameter identification under (W+) PE: "
+                     r"$\hat{\theta}_i(t) \to 1/\lambda_i$ "
+                     r"(dashed lines = true $1/\lambda_i$)", fontsize=10)
+    ax_err.set_ylabel(r"$|\hat{\theta}_i - 1/\lambda_i|$")
+    ax_err.set_xlabel("time [s]")
+    ax_err.set_ylim(1e-5, 1.0)
+
+    # Annotate phases
+    ax_th.text((0 + T_PE_start) / 2, ax_th.get_ylim()[1] * 0.95,
+                "rendezvous\ntransient", ha="center", va="top", fontsize=8,
+                bbox=dict(facecolor="white", alpha=0.7, edgecolor="#888",
+                          boxstyle="round,pad=0.2"))
+    ax_th.text((T_PE_start + T_PE) / 2, ax_th.get_ylim()[1] * 0.95,
+                "cruise + PE\n(W+ active)", ha="center", va="top", fontsize=8,
+                bbox=dict(facecolor="#fff0e0", alpha=0.85, edgecolor="#888",
+                          boxstyle="round,pad=0.2"))
+    if T_PE < t[-1]:
+        ax_th.text((T_PE + t[-1]) / 2, ax_th.get_ylim()[1] * 0.95,
+                    "PE-off\ncooldown", ha="center", va="top", fontsize=8,
+                    bbox=dict(facecolor="white", alpha=0.7, edgecolor="#888",
+                              boxstyle="round,pad=0.2"))
+
     fig.tight_layout()
     fig.savefig(save_path, bbox_inches="tight")
     plt.close(fig)
@@ -296,6 +380,27 @@ def main():
     print("\nGenerating figure...")
     make_figure(out_AC, out_CBF, OUT_FIG / "figure_diamond_v18.pdf")
     print(f"  written to {OUT_FIG / 'figure_diamond_v18.pdf'}")
+
+    print("\n[3/3] Adaptive run (Pomet-Praly + PE on cruise window) ...")
+    T_adapt = 60.0
+    T_PE_start = 6.0
+    T_PE = 58.0
+    out_adapt = diamond_run_adaptive(
+        T_final=T_adapt, T_PE_start=T_PE_start, T_PE=T_PE,
+        A_e=2.0, gamma=5.0,
+    )
+    th_final = out_adapt["theta_hat"][-1]
+    lam = out_adapt["lambda_true"]
+    err_final = np.abs(th_final - 1.0 / lam)
+    print(f"  true 1/lambda = {np.round(1.0/lam, 3)}")
+    print(f"  theta_hat(T_f) = {np.round(th_final, 3)}")
+    print(f"  identification error = {np.round(err_final, 4)}")
+    print(f"  pairwise h_min = {out_adapt['h'].min():.3f}")
+    print(f"  obstacle h_min = {out_adapt['h_obs'].min():.3f}")
+    make_identification_figure(out_adapt,
+                                OUT_FIG / "figure_diamond_identification.pdf",
+                                T_PE_start, T_PE)
+    print(f"  written to {OUT_FIG / 'figure_diamond_identification.pdf'}")
 
     print("\nGenerating GIF...")
     make_gif(OUT_GIF / "diamond_v18.gif", fps=15, T_final=T_final)
