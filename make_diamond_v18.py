@@ -41,10 +41,19 @@ DIAMOND_TARGETS = np.array([
 ], dtype=complex)
 DIAMOND_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
 OBSTACLES = (
-    # Council Pass 53/54/55 Fix-A: shrink obstacle from 1.0 to 0.5 so the
-    # cross-swap straight-line clearance (~1.59 m from origin) exceeds the
-    # bubble (r_obs + r_safe = 0.9 m). Verifies (N+) Nagumo input-feasibility.
+    # Council Pass 53/54/55 Fix-A: central obstacle r_obs=0.5
     (0.0 + 0.0j, 0.5),
+    # Council Pass 60-62: 4 corner obstacles at corners of [-3,3]^2.
+    # Pure-radial Khatib at this geometry deadlocks the closed loop at
+    # the bubble boundary (Reis-Aguiar-Silvestre 2021 IEEE TAC: "CBF-QPs
+    # introduce undesirable asymptotically stable equilibria"). Pass 62
+    # fix: circulation-embedded reference (Khansari-Zadeh & Billard 2012
+    # modulation; Singletary-Klingebiel-Bourne-Browning-Ames 2020) adds
+    # tangential bias near each obstacle, breaking the deadlock.
+    (-3.0 - 3.0j, 0.5),
+    ( 3.0 - 3.0j, 0.5),
+    ( 3.0 + 3.0j, 0.5),
+    (-3.0 + 3.0j, 0.5),
 )
 
 
@@ -58,8 +67,8 @@ AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
 
 def diamond_run(T_final: float = 14.0,
                 use_safety_filter: bool = True,
-                K_obs: float = 4.0) -> dict:
-    """Run a v18 diamond rendezvous: 4 vehicles, static targets, 1 obstacle."""
+                K_obs: float = 8.0) -> dict:
+    """Run a v18 diamond rendezvous: 4 vehicles, 5 obstacles."""
     return v18.run(
         r0=DIAMOND_R0.copy(),
         v0=np.zeros(4, dtype=complex),
@@ -77,7 +86,8 @@ def diamond_run_adaptive(T_final: float = 60.0,
                           T_PE_start: float = 6.0,
                           T_PE: float = 58.0,
                           A_e: float = 2.0,
-                          gamma: float = 5.0) -> dict:
+                          gamma: float = 5.0,
+                          K_obs: float = 8.0) -> dict:
     """Adaptive run: rendezvous-then-PE-then-cooldown protocol (Pass 57).
 
     [0, T_PE_start]      : rendezvous transient, no PE, no adaptation.
@@ -94,7 +104,7 @@ def diamond_run_adaptive(T_final: float = 60.0,
         edges=DIAMOND_EDGES,
         t_targets_fn=diamond_targets_static,
         T_final=T_final,
-        K_p=4.0, K_d=4.0, K_obs=4.0,
+        K_p=4.0, K_d=4.0, K_obs=K_obs,
         obstacles=OBSTACLES,
         use_safety_filter=True,
         adaptive=True,

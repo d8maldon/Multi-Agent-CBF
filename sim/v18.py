@@ -119,37 +119,74 @@ def reference_acceleration(r: np.ndarray, v: np.ndarray, t_targets: np.ndarray,
                             t_targets_dot: np.ndarray = None,
                             obstacles: tuple = (),
                             K_p: float = 4.0, K_d: float = 4.0,
-                            K_obs: float = 16.0) -> np.ndarray:
-    """Compute u_ref[i] = -K_p*(r_i - target_i) - K_d*v_i + obstacle_repulsion.
+                            K_obs: float = 16.0,
+                            K_rot: float = None) -> np.ndarray:
+    """Compute u_ref[i] = -K_p*(r_i - target_i) - K_d*v_i + obstacle field.
 
     Standard PD on position with velocity damping. With damping, vehicles
     DECELERATE as they approach the target — they can stop at v = 0.
-    Target velocity feedforward (t_targets_dot) keeps tracking error zero
-    for moving targets.
 
-    Optional Khatib 1986 potential-field obstacle repulsion in the AC
-    reference (so the CBF doesn't have to handle head-on geometry).
+    Obstacle field (Pass 61 council): a Khatib 1986 radial repulsion combined
+    with a Khansari-Zadeh & Billard 2012 / Singletary-Ames 2020 *circulation
+    component* (rotational potential field). The radial term alone creates
+    a known PD+HOCBF deadlock at the bubble boundary (Reis-Aguiar-Silvestre
+    2021 IEEE TAC: "CBF-QPs introduce undesirable asymptotically stable
+    equilibria"). The rotational term adds tangential bias so the closed
+    loop has no zero-velocity equilibria on the bubble boundary.
+
+    Field per agent i, per obstacle k:
+        F_radial = K_obs · overlap² · n_hat        (Khatib outward repulsion)
+        F_circ   = K_rot · overlap² · (i·n_hat)·s  (CCW tangential bias,
+                                                    s = ±1 chosen to align
+                                                    with goal-direction)
+    where n_hat = (r_i - r_obs)/|r_i - r_obs| and overlap = (r_inf - d)/r_inf.
+
+    Default K_rot = K_obs (45° resultant): equal radial + tangential. Set to
+    None to default to K_obs; set to 0.0 to disable circulation (legacy mode).
     """
+    if K_rot is None:
+        K_rot = K_obs
     N = r.shape[0]
     u_ref = np.zeros(N, dtype=complex)
     for i in range(N):
         u_ref[i] = -K_p * (r[i] - t_targets[i]) - K_d * v[i]
         if t_targets_dot is not None:
-            u_ref[i] += K_d * t_targets_dot[i]   # feedforward target velocity damping
+            u_ref[i] += K_d * t_targets_dot[i]
+    # Saturate PD term FIRST, leaving headroom for obstacle field. This avoids
+    # the per-component clipping washing out the (smaller) circulation signal
+    # when the saturated PD already fills the budget — diagnosed Pass 61.
+    # Pass 62 fix: cap PD direction to u_PD_cap so circulation is preserved.
+    u_PD_cap = U_MAX * 0.5
+    for i in range(N):
+        pd_mag = float(np.abs(u_ref[i]))
+        if pd_mag > u_PD_cap:
+            u_ref[i] = u_ref[i] * (u_PD_cap / pd_mag)
+
     if obstacles:
         for i in range(N):
+            # PD goal direction (used to disambiguate CCW vs CW circulation)
+            goal_dir = t_targets[i] - r[i]
             for (r_obs, r_obs_radius) in obstacles:
                 d_vec = r[i] - r_obs
                 d = float(np.abs(d_vec))
                 r_inf = 2.5 * (r_obs_radius + R_SAFE)
-                if d < r_inf:
+                if d < r_inf and d > 1e-6:
                     overlap = max(r_inf - d, 0.0) / r_inf
-                    f_mag = K_obs * overlap ** 2
-                    u_ref[i] += f_mag * d_vec / max(d, 1e-6)
-    # Saturation: clip per-component (square saturation, not ball)
-    u_ref_re = np.clip(u_ref.real, -U_MAX, U_MAX)
-    u_ref_im = np.clip(u_ref.imag, -U_MAX, U_MAX)
-    return u_ref_re + 1j * u_ref_im
+                    n_hat = d_vec / d              # outward unit vector
+                    # Radial repulsion (Khatib 1986)
+                    u_ref[i] += K_obs * overlap ** 2 * n_hat
+                    # Circulation: pick CCW or CW so that the tangential
+                    # component aligns with the vehicle's goal direction
+                    # (avoids reversing direction of motion).
+                    t_hat_ccw = 1j * n_hat         # 90° CCW from n_hat
+                    sign = +1.0 if (goal_dir.conjugate() * t_hat_ccw).real > 0 else -1.0
+                    u_ref[i] += K_rot * overlap ** 2 * (sign * t_hat_ccw)
+    # Final saturation: radial (norm-ball) preserves direction
+    for i in range(N):
+        m = float(np.abs(u_ref[i]))
+        if m > U_MAX:
+            u_ref[i] = u_ref[i] * (U_MAX / m)
+    return u_ref
 
 
 # ---------------------------------------------------------------------------

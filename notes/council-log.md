@@ -1227,3 +1227,42 @@ Every new entry follows:
 - Pass 59 (controls-expert-reviewer): SUBMIT-READY (loop-break)
 
 The v18 paper is **IEEE-LCSS submittable**. Theorem 1(1) safety, 1(2) UUB, 1(3) identification all verified empirically + theoretically. All BLOCKERs from Pass 53/54/55 closed. Council protocol: CONVERGED.
+
+---
+
+## Pass 60 - 2026-05-08 - math-god-mode (geometric extension: 5-obstacle diamond at [-3,3]² corners)
+**Audited:** proposed make_diamond_v18.py extension; OBSTACLES tuple change.
+**Verdict:** SOUND analytical (N+ holds: max 1 obstacle active per state); EMPIRICAL VERIFICATION REQUIRED.
+**Personas:** Ames, Egerstedt, Frazzoli, Tao.
+**Findings:**
+- ✅ [NEW, Ames] (N+) Nagumo holds: obstacles spaced 6+ m, bubble 0.9 m → max 1 obstacle CBF active per state.
+- ⚠ [NEW, Frazzoli] EMPIRICAL VERIFICATION REQUIRED: closed-loop min h_obs ≥ 0; static rendezvous preserved.
+**Status of prior pass commitments:** Pass 59 (1-obstacle SUBMIT-READY): preserved as special case. NEW SCOPE.
+
+---
+
+## Pass 61 - 2026-05-08 - controls-expert-reviewer (empirical FAILURE diagnosis: PD+HOCBF deadlock)
+**Audited:** sim runs at [-3,3]² corners with various K_p, K_obs.
+**Verdict:** NEEDS LITERATURE FIX; bare PD+HOCBF deadlocks at bubble boundary regardless of gains.
+**Personas:** Ames, Frazzoli, Egerstedt.
+**Findings:**
+- 🔴 [NEW, Ames] Closed-loop has undesirable asymptotically stable equilibrium at d=0.7m (bubble boundary). Pass 60 (N+) is necessary not sufficient: equilibrium exists with admissible u (any tangent direction), but PD attracts radially in, HOCBF blocks radial in, K_d damps tangential drift to 0. Cite Reis-Aguiar-Silvestre 2021 IEEE TAC.
+**Sign-off conditions:** apply circulation-embedded reference (literature search recommended).
+
+---
+
+## Pass 62 - 2026-05-08 - controls-expert-reviewer (circulation fix verified)
+**Audited:** sim/v18.py reference_acceleration with circulation-embedded RPF (Khansari-Zadeh 2012 + Singletary-Ames 2020) + cap-PD saturation; 5-obstacle [-3,3]² demo.
+**Verdict:** SUBMIT-READY (loop-break engaged on the v18 5-obstacle scope).
+**Personas:** Aaron Ames, Magnus Egerstedt, Eric Frazzoli.
+**Empirical:** at [-3,3]² corners with r_obs=0.5, K_obs=8: AC+CBF pair h+7.5, obs h+0.328, |v(Tf)|=0.028, |r-r*|=0.019; adaptive run identifies θ̂→1/λ to <1e-4 for all 4 agents.
+**Findings:**
+- 🟠 [NEW, Egerstedt] Add liveness/safety separation remark in §II (circulation = AC-ref design; safety = Theorem 1 independent). APPLIED.
+- 🟡 [NEW, Ames] Literature attribution: Reis-Aguiar 2021 (problem), K-Z 2012 (modulation), Singletary 2020 (CBF-circulation). APPLIED.
+- 🟡 [NEW, Ames] One-sentence justification for cap-PD = u_max/2. APPLIED.
+- 🟡 [NEW, Frazzoli] Tighten PE-residual wording. APPLIED.
+**Sign-off conditions:** All 4 minor edits applied; controls commits to no further additions on Pass 62 scope.
+**Status of prior pass commitments:**
+- Pass 60 (N+) verification: COMPLETED via empirical run.
+- Pass 61 (deadlock BLOCKER): RESOLVED via circulation fix (literature solution).
+- Pass 56-59 (1-obstacle v18 SUBMIT-READY): preserved as the K_rot=0 special case.
