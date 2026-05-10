@@ -1266,3 +1266,40 @@ The v18 paper is **IEEE-LCSS submittable**. Theorem 1(1) safety, 1(2) UUB, 1(3) 
 - Pass 60 (N+) verification: COMPLETED via empirical run.
 - Pass 61 (deadlock BLOCKER): RESOLVED via circulation fix (literature solution).
 - Pass 56-59 (1-obstacle v18 SUBMIT-READY): preserved as the K_rot=0 special case.
+
+---
+
+## Pass 63 - 2026-05-10 - math-god-mode (final bundle sanity check)
+**Audited:** complete v18 bundle (paper.pdf + figures + GIF + sim) @ e09e3fa
+**Verdict:** SHIP IT (loop-break engaged; 11th consecutive non-blocking pass)
+**Personas:** Tao, Annaswamy, Ames, Borkar, Boyd
+**Findings (all 🔵 INFO):**
+- 🔵 [NEW, Tao] Reconcile abstract's "eleven pre-1985 objects" with the now-13-object count (3 post-1985 engineering fixes added Pass 62) — APPLIED
+- 🔵 [NEW, Ames] Fig. 2 caption could state "26 simultaneous HOCBF constraints" for scale — APPLIED
+- 🔵 [NEW, Boyd] GIF rendered at 30 fps instead of 15 — APPLIED
+
+---
+
+## Pass 64 - 2026-05-10 - controls-expert-reviewer (safety/learning panel: Fan + Herbert + Bajcsy)
+**Audited:** complete v18 bundle + Pass 63 polish edits
+**Verdict:** SUBMIT-READY (12th consecutive non-blocking pass; loop-break engaged)
+**Personas (this pass):** Chuchu Fan (MIT, neural certificates), Sylvia Herbert (UCSD, HJ reachability + neural CBFs), Andrea Bajcsy (CMU, online safe sets + UQ)
+
+**Findings (all 🔵 INFO, journal-version directions; none blocking LCSS):**
+- 🔵 [NEW, Fan] $N^2+NK$ constraint scaling note (optional journal addition)
+- 🔵 [NEW, Herbert] HJ-optimal safe set comparison via Herbert et al. 2019 / hj_reachability (journal)
+- 🔵 [NEW, Herbert] Neural CBF as future work — Dawson-Gao-Fan 2022 (journal)
+- 🔵 [NEW, Bajcsy] Probabilistic UQ on $\hat\theta$ via noise-perturbed CR-bound (journal)
+- 🔵 [NEW, Bajcsy] Trust-region online safe-set tightening as $\hat\theta$ converges (journal)
+- 🔵 [NEW, Fan] Conformal verification radius (journal)
+
+**Sign-off conditions:** none. Safety/learning panel commits to no further additions on Pass 64 scope. The 6 INFO items form a coherent journal-version roadmap.
+
+**Status of prior pass commitments:** all Pass 53-63 HONOURED. v18 IEEE-LCSS scope CONVERGED.
+
+**Journal-version paper roadmap (for follow-up):**
+1. Neural CBF (Herbert + Fan)
+2. HJ-optimal safe set comparison (Herbert)
+3. Probabilistic UQ via noise-perturbed CR (Bajcsy)
+4. Trust-region safe-set tightening as $\hat\theta$ converges (Bajcsy)
+5. Conformal verification radius (Fan)

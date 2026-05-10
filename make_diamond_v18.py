@@ -413,7 +413,8 @@ def main():
     print(f"  written to {OUT_FIG / 'figure_diamond_identification.pdf'}")
 
     print("\nGenerating GIF...")
-    make_gif(OUT_GIF / "diamond_v18.gif", fps=15, T_final=T_final)
+    # Pass 63 Boyd: 30 fps for smoother cross-swap motion
+    make_gif(OUT_GIF / "diamond_v18.gif", fps=30, T_final=T_final)
 
 
 if __name__ == "__main__":
