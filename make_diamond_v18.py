@@ -14,9 +14,38 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.patches import Polygon
 import numpy as np
 
 from sim import v18
+
+
+def _vehicle_body_xy(r_center: complex, heading: complex,
+                      length: float = 0.45, width: float = 0.28):
+    """Return (xs, ys) arrays for a chevron-shaped vehicle body pointed in
+    the heading direction. Acts like a small aircraft icon:
+        - Tip (nose) at center + length * heading_hat
+        - Back-left/right at center - 0.5*length*heading_hat ± 0.5*width*(i*heading_hat)
+    Heading must be a non-zero complex; if zero, defaults to +x.
+    """
+    h = heading
+    hmag = float(np.abs(h))
+    if hmag < 1e-6:
+        h_hat = 1.0 + 0.0j
+    else:
+        h_hat = h / hmag
+    perp = 1j * h_hat   # 90° CCW perpendicular
+    nose = r_center + length * h_hat
+    back_l = r_center - 0.5 * length * h_hat + 0.5 * width * perp
+    tail = r_center - 0.65 * length * h_hat
+    back_r = r_center - 0.5 * length * h_hat - 0.5 * width * perp
+    pts = np.array([
+        [nose.real, nose.imag],
+        [back_l.real, back_l.imag],
+        [tail.real, tail.imag],
+        [back_r.real, back_r.imag],
+    ])
+    return pts
 
 
 HERE = Path(__file__).resolve().parent
@@ -188,11 +217,20 @@ def make_figure(out_AC, out_CBF, save_path: Path):
             ax.plot(xs, ys, color=AGENT_COLOURS[i],
                     linewidth=1.6, alpha=0.85,
                     label=f"vehicle {i}", zorder=3)
-            ax.plot([xs[0]], [ys[0]], "o", color=AGENT_COLOURS[i],
-                    markersize=8, zorder=4, alpha=0.6)
-            ax.plot([xs[-1]], [ys[-1]], "^", color=AGENT_COLOURS[i],
-                    markersize=12, zorder=5, alpha=0.95,
-                    markeredgecolor="black", markeredgewidth=0.5)
+            # Start: vehicle body oriented toward target (initial cross-swap heading)
+            start_heading = DIAMOND_TARGETS[i] - DIAMOND_R0[i]
+            start_xy = _vehicle_body_xy(complex(xs[0], ys[0]), start_heading,
+                                         length=0.4, width=0.25)
+            ax.add_patch(Polygon(start_xy, closed=True,
+                                  facecolor=AGENT_COLOURS[i], edgecolor="black",
+                                  linewidth=0.6, alpha=0.55, zorder=4))
+            # End: vehicle body oriented in TERMINAL_HEADINGS (CW pinwheel)
+            end_xy = _vehicle_body_xy(complex(xs[-1], ys[-1]),
+                                       TERMINAL_HEADINGS[i],
+                                       length=0.55, width=0.32)
+            ax.add_patch(Polygon(end_xy, closed=True,
+                                  facecolor=AGENT_COLOURS[i], edgecolor="black",
+                                  linewidth=0.8, alpha=0.95, zorder=5))
             # Heading-vector arrows along trajectory: sampled every K steps,
             # normalized velocity direction (hat v_i = v_i / |v_i|), arrow
             # length scaled for visibility.
@@ -352,28 +390,26 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
     ax.grid(True, alpha=0.3)
 
     trails = []
-    bodies = []
+    bodies = []           # chevron Polygon patches
     safety_circles = []
-    heading_arrows = []   # per-vehicle heading-vector (velocity direction)
     for i in range(N):
         line, = ax.plot([], [], color=AGENT_COLOURS[i],
                         linewidth=1.6, alpha=0.7, zorder=3,
                         label=f"vehicle {i}")
         trails.append(line)
-        body, = ax.plot([], [], "o", color=AGENT_COLOURS[i],
-                         markersize=10, zorder=5)
-        bodies.append(body)
+        # Oriented vehicle body as a chevron Polygon patch
+        # (initial heading: toward target along the cross-swap)
+        initial_heading = DIAMOND_TARGETS[i] - DIAMOND_R0[i]
+        body_xy = _vehicle_body_xy(DIAMOND_R0[i], initial_heading)
+        body_patch = Polygon(body_xy, closed=True,
+                              facecolor=AGENT_COLOURS[i],
+                              edgecolor="black", linewidth=0.9,
+                              alpha=0.95, zorder=5)
+        ax.add_patch(body_patch)
+        bodies.append(body_patch)
         circ, = ax.plot([], [], color=AGENT_COLOURS[i],
                          linewidth=0.6, alpha=0.4, zorder=4)
         safety_circles.append(circ)
-        # FancyArrow for heading vector; updated in animate()
-        arrow = ax.annotate("", xy=(0, 0), xytext=(0, 0),
-                             arrowprops=dict(arrowstyle="->",
-                                             color=AGENT_COLOURS[i],
-                                             lw=2.0, alpha=0.95,
-                                             mutation_scale=18),
-                             zorder=6)
-        heading_arrows.append(arrow)
     ax.legend(loc="upper right", fontsize=8, ncol=2)
 
     ax_h.set_xlim(0, duration)
@@ -390,8 +426,6 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
     cos_th = np.cos(theta_circ)
     sin_th = np.sin(theta_circ)
 
-    arrow_len = 0.7   # m, fixed visible length for heading arrows
-
     def animate(frame_idx):
         idx = frame_indices[frame_idx]
         t_now = t[idx]
@@ -399,36 +433,27 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
             xs = r[:idx + 1, i].real
             ys = r[:idx + 1, i].imag
             trails[i].set_data(xs, ys)
-            bodies[i].set_data([r[idx, i].real], [r[idx, i].imag])
             safety_circles[i].set_data(
                 r[idx, i].real + v18.R_SAFE * cos_th,
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
-            # Heading arrow: by default v_hat direction. Switch to prescribed
-            # TERMINAL_HEADINGS direction when vehicle is at rest near its
-            # target (|v| < 1e-2 AND |r - r_target| < 0.3 m) — this makes the
-            # final formation show the CW pinwheel orientation.
+            # Determine heading: v_hat normally, TERMINAL_HEADINGS when at rest
+            # near target. Then redraw the vehicle body (chevron Polygon).
             vk = v[idx, i]
             vmag = float(np.abs(vk))
             d_to_target = float(np.abs(r[idx, i] - DIAMOND_TARGETS[i]))
             at_rest_near_target = (vmag < 1e-2) and (d_to_target < 0.3)
             if at_rest_near_target:
-                d_hat = TERMINAL_HEADINGS[i]
-                dx = arrow_len * float(np.real(d_hat))
-                dy = arrow_len * float(np.imag(d_hat))
-                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
-                heading_arrows[i].xy = (r[idx, i].real + dx,
-                                          r[idx, i].imag + dy)
-            elif vmag < 1e-2:
-                # Not at target yet, but stalled — hide the arrow
-                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
-                heading_arrows[i].xy = (r[idx, i].real, r[idx, i].imag)
+                heading_dir = TERMINAL_HEADINGS[i]
+            elif vmag < 1e-3:
+                # Stalled mid-trajectory: aim toward target as heading proxy
+                heading_dir = DIAMOND_TARGETS[i] - r[idx, i]
+                if float(np.abs(heading_dir)) < 1e-3:
+                    heading_dir = TERMINAL_HEADINGS[i]
             else:
-                dx = arrow_len * float(np.real(vk)) / vmag
-                dy = arrow_len * float(np.imag(vk)) / vmag
-                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
-                heading_arrows[i].xy = (r[idx, i].real + dx,
-                                          r[idx, i].imag + dy)
+                heading_dir = vk
+            body_xy = _vehicle_body_xy(r[idx, i], heading_dir)
+            bodies[i].set_xy(body_xy)
         h_dot.set_data([t_now], [h_combined[idx]])
         nonlocal h_safe_fill, h_unsafe_fill
         for coll in [h_safe_fill, h_unsafe_fill]:
@@ -443,7 +468,7 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
             sub_t, sub_h, 0.0, where=(sub_h < 0), color="#d62728",
             alpha=0.5, interpolate=True,
         )
-        return trails + bodies + safety_circles + heading_arrows + [h_dot, h_safe_fill, h_unsafe_fill]
+        return trails + bodies + safety_circles + [h_dot, h_safe_fill, h_unsafe_fill]
 
     anim = animation.FuncAnimation(
         fig, animate, frames=n_frames, interval=1000 / fps, blit=False,
