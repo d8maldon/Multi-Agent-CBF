@@ -34,10 +34,22 @@ DIAMOND_R0 = np.array([
     -5.0 + 5.0j,
 ], dtype=complex)
 DIAMOND_TARGETS = np.array([
-    0.0 + 3.0j,    # SW corner (-5,-5) -> N vertex  (cross-swap, path through center area)
-    -3.0 + 0.0j,   # SE corner (+5,-5) -> W vertex
-    0.0 - 3.0j,    # NE corner (+5,+5) -> S vertex
-    +3.0 + 0.0j,   # NW corner (-5,+5) -> E vertex
+    0.0 + 3.0j,    # v0: SW (-5,-5) -> N vertex
+    -3.0 + 0.0j,   # v1: SE (+5,-5) -> W vertex
+    0.0 - 3.0j,    # v2: NE (+5,+5) -> S vertex
+    +3.0 + 0.0j,   # v3: NW (-5,+5) -> E vertex
+], dtype=complex)
+# Terminal heading directions (CW pinwheel at the final formation):
+#   v0 at N points toward E (rightmost)   -> SE direction
+#   v1 at W points toward N (topmost)     -> NE direction
+#   v2 at S points toward W (leftmost)    -> NW direction
+#   v3 at E points toward S (bottommost)  -> SW direction
+# Each row is the unit complex vector for the final velocity direction.
+TERMINAL_HEADINGS = np.array([
+    (1.0 - 1.0j) / np.sqrt(2.0),   # v0: SE
+    (1.0 + 1.0j) / np.sqrt(2.0),   # v1: NE
+    (-1.0 + 1.0j) / np.sqrt(2.0),  # v2: NW
+    (-1.0 - 1.0j) / np.sqrt(2.0),  # v3: SW
 ], dtype=complex)
 DIAMOND_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
 OBSTACLES = (
@@ -60,6 +72,23 @@ OBSTACLES = (
 def diamond_targets_static(t: float) -> np.ndarray:
     """STATIC diamond targets — feasible at v18 because vehicles can decelerate."""
     return DIAMOND_TARGETS.copy()
+
+
+def _draw_terminal_headings(ax, length: float = 1.0, alpha: float = 0.85):
+    """Draw the prescribed terminal-heading arrows at each diamond target.
+    These show the CW pinwheel pattern: v0(N)→E, v1(W)→N, v2(S)→W, v3(E)→S.
+    Static annotation independent of the trajectory's instantaneous velocity.
+    """
+    for i, (t_tgt, d_hat) in enumerate(zip(DIAMOND_TARGETS, TERMINAL_HEADINGS)):
+        x0, y0 = float(t_tgt.real), float(t_tgt.imag)
+        dx = length * float(np.real(d_hat))
+        dy = length * float(np.imag(d_hat))
+        ax.annotate("", xy=(x0 + dx, y0 + dy), xytext=(x0, y0),
+                    arrowprops=dict(arrowstyle="-|>", color=AGENT_COLOURS[i],
+                                    lw=2.5, alpha=alpha,
+                                    mutation_scale=22,
+                                    linestyle="-"),
+                    zorder=7)
 
 
 AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
@@ -150,6 +179,8 @@ def make_figure(out_AC, out_CBF, save_path: Path):
 
         _draw_obstacles(ax)
         _draw_diamond_targets(ax)
+        # Pre-draw prescribed terminal-heading arrows (CW pinwheel)
+        _draw_terminal_headings(ax, length=1.0)
 
         for i in range(N):
             xs = r[:, i].real
@@ -373,11 +404,23 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].real + v18.R_SAFE * cos_th,
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
-            # Heading arrow: v_hat direction from body, normalized to fixed
-            # visible length. Hide when essentially at rest (|v| < 0.01).
+            # Heading arrow: by default v_hat direction. Switch to prescribed
+            # TERMINAL_HEADINGS direction when vehicle is at rest near its
+            # target (|v| < 1e-2 AND |r - r_target| < 0.3 m) — this makes the
+            # final formation show the CW pinwheel orientation.
             vk = v[idx, i]
             vmag = float(np.abs(vk))
-            if vmag < 1e-2:
+            d_to_target = float(np.abs(r[idx, i] - DIAMOND_TARGETS[i]))
+            at_rest_near_target = (vmag < 1e-2) and (d_to_target < 0.3)
+            if at_rest_near_target:
+                d_hat = TERMINAL_HEADINGS[i]
+                dx = arrow_len * float(np.real(d_hat))
+                dy = arrow_len * float(np.imag(d_hat))
+                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
+                heading_arrows[i].xy = (r[idx, i].real + dx,
+                                          r[idx, i].imag + dy)
+            elif vmag < 1e-2:
+                # Not at target yet, but stalled — hide the arrow
                 heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
                 heading_arrows[i].xy = (r[idx, i].real, r[idx, i].imag)
             else:
