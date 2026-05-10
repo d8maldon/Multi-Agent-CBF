@@ -162,6 +162,26 @@ def make_figure(out_AC, out_CBF, save_path: Path):
             ax.plot([xs[-1]], [ys[-1]], "^", color=AGENT_COLOURS[i],
                     markersize=12, zorder=5, alpha=0.95,
                     markeredgecolor="black", markeredgewidth=0.5)
+            # Heading-vector arrows along trajectory: sampled every K steps,
+            # normalized velocity direction (hat v_i = v_i / |v_i|), arrow
+            # length scaled for visibility.
+            n_arrows = 12   # arrows per trajectory
+            stride = max(1, len(xs) // (n_arrows + 1))
+            arrow_len = 0.6  # m, fixed visible length regardless of |v_i|
+            for k in range(stride, len(xs) - stride, stride):
+                vk = v[k, i]
+                vmag = float(np.abs(vk))
+                if vmag < 1e-3:
+                    continue   # skip when essentially at rest
+                dx = arrow_len * float(np.real(vk)) / vmag
+                dy = arrow_len * float(np.imag(vk)) / vmag
+                ax.annotate("", xy=(xs[k] + dx, ys[k] + dy),
+                            xytext=(xs[k], ys[k]),
+                            arrowprops=dict(arrowstyle="->",
+                                            color=AGENT_COLOURS[i],
+                                            lw=1.2, alpha=0.85,
+                                            mutation_scale=12),
+                            zorder=4)
 
         ax.set_aspect("equal")
         ax.set_xlim(-6.5, 6.5)
@@ -274,6 +294,7 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
 
     t = out["t"]
     r = out["r"]
+    v = out["v"]
     h_pair = out["h"].min(axis=1)
     h_obs = out["h_obs"].min(axis=1) if out["h_obs"].size > 0 else h_pair
     h_combined = np.minimum(h_pair, h_obs)
@@ -302,6 +323,7 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
     trails = []
     bodies = []
     safety_circles = []
+    heading_arrows = []   # per-vehicle heading-vector (velocity direction)
     for i in range(N):
         line, = ax.plot([], [], color=AGENT_COLOURS[i],
                         linewidth=1.6, alpha=0.7, zorder=3,
@@ -313,6 +335,14 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
         circ, = ax.plot([], [], color=AGENT_COLOURS[i],
                          linewidth=0.6, alpha=0.4, zorder=4)
         safety_circles.append(circ)
+        # FancyArrow for heading vector; updated in animate()
+        arrow = ax.annotate("", xy=(0, 0), xytext=(0, 0),
+                             arrowprops=dict(arrowstyle="->",
+                                             color=AGENT_COLOURS[i],
+                                             lw=2.0, alpha=0.95,
+                                             mutation_scale=18),
+                             zorder=6)
+        heading_arrows.append(arrow)
     ax.legend(loc="upper right", fontsize=8, ncol=2)
 
     ax_h.set_xlim(0, duration)
@@ -329,6 +359,8 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
     cos_th = np.cos(theta_circ)
     sin_th = np.sin(theta_circ)
 
+    arrow_len = 0.7   # m, fixed visible length for heading arrows
+
     def animate(frame_idx):
         idx = frame_indices[frame_idx]
         t_now = t[idx]
@@ -341,6 +373,19 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].real + v18.R_SAFE * cos_th,
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
+            # Heading arrow: v_hat direction from body, normalized to fixed
+            # visible length. Hide when essentially at rest (|v| < 0.01).
+            vk = v[idx, i]
+            vmag = float(np.abs(vk))
+            if vmag < 1e-2:
+                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
+                heading_arrows[i].xy = (r[idx, i].real, r[idx, i].imag)
+            else:
+                dx = arrow_len * float(np.real(vk)) / vmag
+                dy = arrow_len * float(np.imag(vk)) / vmag
+                heading_arrows[i].set_position((r[idx, i].real, r[idx, i].imag))
+                heading_arrows[i].xy = (r[idx, i].real + dx,
+                                          r[idx, i].imag + dy)
         h_dot.set_data([t_now], [h_combined[idx]])
         nonlocal h_safe_fill, h_unsafe_fill
         for coll in [h_safe_fill, h_unsafe_fill]:
@@ -355,7 +400,7 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
             sub_t, sub_h, 0.0, where=(sub_h < 0), color="#d62728",
             alpha=0.5, interpolate=True,
         )
-        return trails + bodies + safety_circles + [h_dot, h_safe_fill, h_unsafe_fill]
+        return trails + bodies + safety_circles + heading_arrows + [h_dot, h_safe_fill, h_unsafe_fill]
 
     anim = animation.FuncAnimation(
         fig, animate, frames=n_frames, interval=1000 / fps, blit=False,
