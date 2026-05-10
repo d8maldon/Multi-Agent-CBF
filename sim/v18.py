@@ -450,6 +450,7 @@ def run(r0: np.ndarray, v0: np.ndarray,
         T_PE: float = float("inf"),
         gamma: float = None,
         v_terminal_fn=None,
+        target_offset_fn=None,
         log_every: int = 1) -> dict:
     """Run a v18 simulation from initial conditions.
 
@@ -501,10 +502,19 @@ def run(r0: np.ndarray, v0: np.ndarray,
         IMPORTANT: this is computed at the CALLER's state (plant or reference
         model). The reference model has its own closed-loop PD so it remains
         bounded and provides a well-defined target trajectory for tilde_v.
+
+        State-dependent target offset (target_offset_fn): shifts the PD aim
+        point as a function of state, so the path can curve to approach
+        each target tangent to a prescribed direction (e.g., the CW pinwheel
+        terminal heading on the diamond demo). The offset → 0 as r → target,
+        so static rendezvous is preserved.
         """
         t_targets = t_targets_fn(t_now)
         eps = 1e-3
         t_dot = (t_targets_fn(t_now + eps) - t_targets_fn(t_now - eps)) / (2.0 * eps)
+        if target_offset_fn is not None:
+            offset = target_offset_fn(state_r, t_now)
+            t_targets = t_targets + offset
         v_term_fb = None
         if v_terminal_fn is not None:
             v_term_fb = v_terminal_fn(state_r, t_now)
