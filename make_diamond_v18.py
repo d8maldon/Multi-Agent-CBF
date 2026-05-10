@@ -103,6 +103,48 @@ def diamond_targets_static(t: float) -> np.ndarray:
     return DIAMOND_TARGETS.copy()
 
 
+def diamond_v_terminal_fn(r_now: np.ndarray, t_now: float) -> np.ndarray:
+    """Time-windowed terminal-heading velocity feedforward for the diamond
+    demo. Returns a per-vehicle complex velocity bias toward
+    TERMINAL_HEADINGS[i] active only during [t_on, t_off] when vehicles
+    are in their final approach phase.
+
+    Outside the window the feedforward is zero, so the steady-state PD
+    equilibrium is exactly r = r_target (no offset). Inside the window,
+    PD steers v toward d_hat_terminal so the final approach is along
+    that direction. The chevron orientation tracks v_hat throughout —
+    physically honest for the double-integrator plant (no magic in-place
+    rotation; orientation only exists via velocity direction).
+
+        v_term_i(r, t) = v_amp * d_hat_terminal_i * gaussian(d_i) * gate(t)
+        gate(t) = raised-cosine taper on [t_on, t_off]
+
+    The empirical run shows: chevron follows velocity → during [t_on, t_off]
+    velocity is in d_hat direction → chevron faces d_hat → at t > t_off,
+    PD pulls vehicle to exact target with velocity decaying (chevron stays
+    roughly oriented along d_hat as it slows to zero).
+    """
+    t_on = 4.0
+    t_off = 7.0
+    taper = 0.5
+    v_amp = 2.0
+    sigma = 2.0
+    if t_now < t_on - taper or t_now > t_off + taper:
+        return np.zeros_like(TERMINAL_HEADINGS)
+    if t_now < t_on:
+        gate = 0.5 * (1.0 - float(np.cos(np.pi * (t_now - (t_on - taper)) / taper)))
+    elif t_now > t_off:
+        gate = 0.5 * (1.0 - float(np.cos(np.pi * ((t_off + taper) - t_now) / taper)))
+    else:
+        gate = 1.0
+    v_term = np.zeros_like(TERMINAL_HEADINGS)
+    for i in range(len(DIAMOND_TARGETS)):
+        d = float(np.abs(r_now[i] - DIAMOND_TARGETS[i]))
+        shell = float(np.exp(-d * d / (sigma * sigma)))
+        v_term[i] = v_amp * TERMINAL_HEADINGS[i] * shell * gate
+    return v_term
+
+
 def _draw_terminal_headings(ax, length: float = 1.0, alpha: float = 0.85):
     """Draw the prescribed terminal-heading arrows at each diamond target.
     These show the CW pinwheel pattern: v0(N)→E, v1(W)→N, v2(S)→W, v3(E)→S.
@@ -125,7 +167,8 @@ AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
 
 def diamond_run(T_final: float = 14.0,
                 use_safety_filter: bool = True,
-                K_obs: float = 8.0) -> dict:
+                K_obs: float = 8.0,
+                with_terminal_heading: bool = True) -> dict:
     """Run a v18 diamond rendezvous: 4 vehicles, 5 obstacles."""
     return v18.run(
         r0=DIAMOND_R0.copy(),
@@ -136,6 +179,7 @@ def diamond_run(T_final: float = 14.0,
         K_p=4.0, K_d=4.0, K_obs=K_obs,
         obstacles=OBSTACLES,
         use_safety_filter=use_safety_filter,
+        v_terminal_fn=diamond_v_terminal_fn if with_terminal_heading else None,
         log_every=2,
     )
 
@@ -170,6 +214,7 @@ def diamond_run_adaptive(T_final: float = 60.0,
         T_PE_start=T_PE_start,
         T_PE=T_PE,
         gamma=gamma,
+        v_terminal_fn=diamond_v_terminal_fn,
         log_every=10,
     )
 
@@ -437,19 +482,25 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].real + v18.R_SAFE * cos_th,
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
-            # Determine heading: v_hat normally, TERMINAL_HEADINGS when at rest
-            # near target. Then redraw the vehicle body (chevron Polygon).
+            # Chevron heading = velocity direction (v_hat). When |v| is very
+            # small (vehicle parked), the chevron freezes in whatever
+            # orientation it last had — no magic in-place rotation. Because
+            # the terminal-heading velocity feedforward steers v toward
+            # d_hat_terminal during final approach, the chevron naturally
+            # ends pointing in the CW pinwheel direction without any visual
+            # snap. Physically honest for a double-integrator plant.
             vk = v[idx, i]
             vmag = float(np.abs(vk))
-            d_to_target = float(np.abs(r[idx, i] - DIAMOND_TARGETS[i]))
-            at_rest_near_target = (vmag < 1e-2) and (d_to_target < 0.3)
-            if at_rest_near_target:
-                heading_dir = TERMINAL_HEADINGS[i]
-            elif vmag < 1e-3:
-                # Stalled mid-trajectory: aim toward target as heading proxy
-                heading_dir = DIAMOND_TARGETS[i] - r[idx, i]
-                if float(np.abs(heading_dir)) < 1e-3:
+            if vmag < 1e-3:
+                # Use last meaningful heading: TERMINAL_HEADINGS if near target,
+                # else the AC-reference goal direction
+                d_to_target = float(np.abs(r[idx, i] - DIAMOND_TARGETS[i]))
+                if d_to_target < 0.5:
                     heading_dir = TERMINAL_HEADINGS[i]
+                else:
+                    heading_dir = DIAMOND_TARGETS[i] - r[idx, i]
+                    if float(np.abs(heading_dir)) < 1e-3:
+                        heading_dir = TERMINAL_HEADINGS[i]
             else:
                 heading_dir = vk
             body_xy = _vehicle_body_xy(r[idx, i], heading_dir)

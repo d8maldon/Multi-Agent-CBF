@@ -120,7 +120,8 @@ def reference_acceleration(r: np.ndarray, v: np.ndarray, t_targets: np.ndarray,
                             obstacles: tuple = (),
                             K_p: float = 4.0, K_d: float = 4.0,
                             K_obs: float = 16.0,
-                            K_rot: float = None) -> np.ndarray:
+                            K_rot: float = None,
+                            v_terminal_fb: np.ndarray = None) -> np.ndarray:
     """Compute u_ref[i] = -K_p*(r_i - target_i) - K_d*v_i + obstacle field.
 
     Standard PD on position with velocity damping. With damping, vehicles
@@ -152,6 +153,13 @@ def reference_acceleration(r: np.ndarray, v: np.ndarray, t_targets: np.ndarray,
         u_ref[i] = -K_p * (r[i] - t_targets[i]) - K_d * v[i]
         if t_targets_dot is not None:
             u_ref[i] += K_d * t_targets_dot[i]
+        # Optional terminal-heading velocity feedforward: a state-dependent
+        # desired velocity that steers v toward d_hat_terminal as the agent
+        # enters a gaussian shell around its target. Decays to 0 at the
+        # target so static rendezvous is preserved while the LAST commanded
+        # direction equals the prescribed terminal heading.
+        if v_terminal_fb is not None:
+            u_ref[i] += K_d * v_terminal_fb[i]
     # Saturate PD term FIRST, leaving headroom for obstacle field. This avoids
     # the per-component clipping washing out the (smaller) circulation signal
     # when the saturated PD already fills the budget — diagnosed Pass 61.
@@ -441,6 +449,7 @@ def run(r0: np.ndarray, v0: np.ndarray,
         T_PE_start: float = 0.0,
         T_PE: float = float("inf"),
         gamma: float = None,
+        v_terminal_fn=None,
         log_every: int = 1) -> dict:
     """Run a v18 simulation from initial conditions.
 
@@ -496,10 +505,14 @@ def run(r0: np.ndarray, v0: np.ndarray,
         t_targets = t_targets_fn(t_now)
         eps = 1e-3
         t_dot = (t_targets_fn(t_now + eps) - t_targets_fn(t_now - eps)) / (2.0 * eps)
+        v_term_fb = None
+        if v_terminal_fn is not None:
+            v_term_fb = v_terminal_fn(state_r, t_now)
         u_ref = reference_acceleration(state_r, state_v, t_targets,
                                         t_targets_dot=t_dot,
                                         obstacles=obstacles,
-                                        K_p=K_p, K_d=K_d, K_obs=K_obs)
+                                        K_p=K_p, K_d=K_d, K_obs=K_obs,
+                                        v_terminal_fb=v_term_fb)
         if pe_inject is not None:
             u_ref = u_ref + pe_inject(t_now)
             u_ref_re = np.clip(u_ref.real, -U_MAX, U_MAX)
