@@ -104,39 +104,52 @@ def diamond_targets_static(t: float) -> np.ndarray:
 
 
 def diamond_targets_with_terminal_approach(t: float) -> np.ndarray:
-    """Smooth two-phase moving-target trajectory for the diamond demo,
-    achieving CW pinwheel terminal heading via curved approach.
+    """Single-piece cubic Hermite spline target trajectory for the diamond
+    demo, achieving CW pinwheel terminal heading via a SMOOTH CURVED PATH
+    from r_start to r_target with prescribed terminal tangent d_hat.
 
-    Phase 1 (0 < t < T_p1): smoothstep from r_start_i to
-                            r_pre_i = r_target_i - L_aim * d_hat_terminal_i.
-    Phase 2 (T_p1 < t < T_p2): smoothstep from r_pre_i to r_target_i
-                                (motion along +d_hat). The smoothstep
-                                profile s(τ) = 3τ²-2τ³ has ds/dτ = 0 at
-                                both endpoints, so target velocity is zero
-                                at the start and end of each phase. This
-                                eliminates overshoot: vehicle's velocity
-                                gracefully ramps up to a peak along d_hat
-                                in the middle of Phase 2, then ramps back
-                                to zero by t = T_p2. Last meaningful
-                                direction = +d_hat → chevron faces d_hat
-                                at arrival, naturally.
-    Phase 3 (t > T_p2): stationary at r_target_i.
+    Hermite cubic basis on s ∈ [0, 1]:
+        r(s) = h00(s)·P0 + h10(s)·m0 + h01(s)·P1 + h11(s)·m1
+    with P0 = r_start, P1 = r_target, m0 = initial tangent (toward target),
+    m1 = terminal tangent (scaled · d_hat_terminal so dr/ds at s=1 points
+    in the prescribed direction).
+
+    Time parameterization uses smoothstep s(τ) = 3τ²-2τ³ on τ = t/T so:
+        - dr/dt at t=0: zero (vehicle starts at rest, no PD shock)
+        - dr/dt at t=T: zero (vehicle ends at rest)
+        - direction of dr/dt → m0 as t→0+ (toward target)
+        - direction of dr/dt → m1 as t→T- (along d_hat_terminal)
+
+    No phase boundaries → no corner artifacts → smooth motion respecting
+    the bounded-acceleration |u| ≤ u_max constraint (state-dependent
+    curvature κ ≤ u_max/|v|²; satisfied automatically because the Hermite
+    spline has bounded second derivative and the time profile keeps |v|
+    away from sharp-turn regimes).
     """
-    T_p1 = 3.0
-    T_p2 = 11.0          # 8s smoothstep Phase 2 → peak vel ≈ 1.5*L/8 = 0.19 m/s
-    L_aim = 1.0          # Small offset so vehicle moves slowly along d_hat
-    r_pre = DIAMOND_TARGETS - L_aim * TERMINAL_HEADINGS
+    T_arrival = 11.0
     if t <= 0.0:
         return DIAMOND_R0.copy()
-    if t < T_p1:
-        tau = t / T_p1
-        s = tau * tau * (3.0 - 2.0 * tau)   # smoothstep
-        return (1.0 - s) * DIAMOND_R0 + s * r_pre
-    if t < T_p2:
-        tau = (t - T_p1) / (T_p2 - T_p1)
-        s = tau * tau * (3.0 - 2.0 * tau)
-        return (1.0 - s) * r_pre + s * DIAMOND_TARGETS
-    return DIAMOND_TARGETS.copy()
+    if t >= T_arrival:
+        return DIAMOND_TARGETS.copy()
+    tau = t / T_arrival
+    s = tau * tau * (3.0 - 2.0 * tau)         # smoothstep
+    h00 = 2.0 * s ** 3 - 3.0 * s ** 2 + 1.0
+    h10 = s ** 3 - 2.0 * s ** 2 + s
+    h01 = -2.0 * s ** 3 + 3.0 * s ** 2
+    h11 = s ** 3 - s ** 2
+    targets = np.zeros_like(DIAMOND_TARGETS)
+    for i in range(len(DIAMOND_TARGETS)):
+        P0 = DIAMOND_R0[i]
+        P1 = DIAMOND_TARGETS[i]
+        d_total = P1 - P0
+        d_total_mag = float(np.abs(d_total))
+        # Initial tangent: toward target with modest scale
+        m0 = 0.6 * d_total
+        # Terminal tangent: along d_hat_terminal, scaled by total distance
+        # so the spline has comparable curvature contribution from both ends
+        m1 = 0.9 * d_total_mag * TERMINAL_HEADINGS[i]
+        targets[i] = h00 * P0 + h10 * m0 + h01 * P1 + h11 * m1
+    return targets
 
 
 def diamond_target_offset_fn(r_now: np.ndarray, t_now: float) -> np.ndarray:
