@@ -318,14 +318,24 @@ def solve_qp_v18(i: int, r: np.ndarray, v: np.ndarray, theta_hat: np.ndarray,
 
     res = prob.solve()
     if res.info.status_val not in (1, 2):
-        # Fallback: clipped target
-        u_safe_fallback = (np.clip(target_re, -U_MAX, U_MAX)
-                            + 1j * np.clip(target_im, -U_MAX, U_MAX))
-        return u_safe_fallback, np.zeros(K_total), f"FALLBACK ({res.info.status})"
+        # Fallback: radially-projected target
+        u_fallback = target_re + 1j * target_im
+        mag = float(np.abs(u_fallback))
+        if mag > U_MAX:
+            u_fallback *= U_MAX / mag
+        return u_fallback, np.zeros(K_total), f"FALLBACK ({res.info.status})"
 
     u_re = float(res.x[0])
     u_im = float(res.x[1])
-    return u_re + 1j * u_im, res.x[2:].copy(), res.info.status
+    # Paper §III.C: post-QP RADIAL projection onto the norm-ball |u| ≤ u_max
+    # (Minkowski 1896 disc). The QP's per-component constraints are a
+    # circumscribed-square approximation; this projection tightens to the
+    # actual disc so the empirical |u_safe| respects the stated u_max.
+    u_complex = u_re + 1j * u_im
+    mag = float(np.abs(u_complex))
+    if mag > U_MAX:
+        u_complex *= U_MAX / mag
+    return u_complex, res.x[2:].copy(), res.info.status
 
 
 def _neighbours(i: int, edges: tuple) -> list:
@@ -544,9 +554,12 @@ def run(r0: np.ndarray, v0: np.ndarray,
                 )
                 u_safe[ag] = u_i_safe
         else:
-            u_safe_re = np.clip(u_AC.real, -U_MAX, U_MAX)
-            u_safe_im = np.clip(u_AC.imag, -U_MAX, U_MAX)
-            u_safe = u_safe_re + 1j * u_safe_im
+            # AC-only path: also apply radial projection (paper §III.C)
+            u_safe = u_AC.copy()
+            for ag in range(N):
+                m = float(np.abs(u_safe[ag]))
+                if m > U_MAX:
+                    u_safe[ag] = u_safe[ag] * (U_MAX / m)
         dr = state_v.copy()
         dv = lambda_arr * u_safe
         if state_r_ref is not None:
