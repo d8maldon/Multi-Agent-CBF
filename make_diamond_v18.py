@@ -122,9 +122,9 @@ def diamond_targets_with_terminal_approach(t: float) -> np.ndarray:
                                 at arrival, naturally.
     Phase 3 (t > T_p2): stationary at r_target_i.
     """
-    T_p1 = 5.0
-    T_p2 = 11.0          # 6s Phase 2 → peak target vel ≈ L_aim*1.5/6 = 0.4 m/s
-    L_aim = 1.6
+    T_p1 = 3.0
+    T_p2 = 11.0          # 8s smoothstep Phase 2 → peak vel ≈ 1.5*L/8 = 0.19 m/s
+    L_aim = 1.0          # Small offset so vehicle moves slowly along d_hat
     r_pre = DIAMOND_TARGETS - L_aim * TERMINAL_HEADINGS
     if t <= 0.0:
         return DIAMOND_R0.copy()
@@ -209,16 +209,20 @@ def diamond_run(T_final: float = 14.0,
     the prescribed d_hat_terminal direction (CW pinwheel). The path is
     smooth (no curls); final orientation = approach direction = d_hat.
     """
-    # Honest approach: vehicles use a straight PD to static target.
-    # Chevron orientation = v_hat at all times. No magic terminal-heading
-    # dynamics (which produced curls/overshoot — physically dishonest).
+    # Two-phase target trajectory: vehicles approach r_pre = r_target - L*d_hat
+    # first, then move slowly along +d_hat to r_target. Long Phase 2 +
+    # overdamped PD ensures vehicle tracks the gentle target velocity
+    # accurately, ending with v≈0 and last meaningful direction = d_hat.
+    t_targets_fn = (diamond_targets_with_terminal_approach
+                    if with_terminal_heading else diamond_targets_static)
+    K_d = 6.0 if with_terminal_heading else 4.0
     return v18.run(
         r0=DIAMOND_R0.copy(),
         v0=np.zeros(4, dtype=complex),
         edges=DIAMOND_EDGES,
-        t_targets_fn=diamond_targets_static,
+        t_targets_fn=t_targets_fn,
         T_final=T_final,
-        K_p=4.0, K_d=4.0, K_obs=K_obs,
+        K_p=4.0, K_d=K_d, K_obs=K_obs,
         obstacles=OBSTACLES,
         use_safety_filter=use_safety_filter,
         log_every=2,
@@ -307,14 +311,16 @@ def make_figure(out_AC, out_CBF, save_path: Path):
             ax.add_patch(Polygon(start_xy, closed=True,
                                   facecolor=AGENT_COLOURS[i], edgecolor="black",
                                   linewidth=0.6, alpha=0.55, zorder=4))
-            # End: vehicle body oriented in the LAST meaningful velocity
-            # direction (honest — no magic terminal heading). We scan back
-            # from the last frame to find the most recent significant |v|.
+            # End: vehicle body oriented in the LAST MEANINGFUL velocity
+            # direction (|v| > 0.05). Scans back from the final frame; the
+            # threshold filters PD-settling noise so the chevron shows the
+            # actual approach direction (which, with the two-phase target
+            # trajectory, is d_hat_terminal).
             end_heading = None
             v_arr = out["v"]
             for k in range(len(xs) - 1, -1, -1):
                 vk = v_arr[k, i]
-                if float(np.abs(vk)) > 1e-3:
+                if float(np.abs(vk)) > 0.05:
                     end_heading = vk
                     break
             if end_heading is None:
@@ -540,13 +546,17 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].real + v18.R_SAFE * cos_th,
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
-            # Chevron heading = v_hat (instantaneous velocity direction).
-            # When |v| is very small, freeze in the LAST meaningful heading
-            # observed (stored across frames). No magic snap — physically
-            # honest for the double-integrator plant.
+            # Chevron heading = v_hat (instantaneous velocity direction)
+            # when |v| is significant (> threshold). The threshold filters
+            # out the PD-settling residual oscillation (sub-cm motion at
+            # |v| < 0.05 m/s after Phase 2). The chevron therefore shows
+            # the last MEANINGFUL direction, not the numerical noise. This
+            # is honest: the vehicle's "orientation" is the direction it
+            # last meaningfully moved in, not the direction of micro-jitter.
             vk = v[idx, i]
             vmag = float(np.abs(vk))
-            if vmag > 1e-3:
+            threshold = 0.05
+            if vmag > threshold:
                 heading_dir = vk
                 last_heading[i] = vk / vmag   # remember for the at-rest case
             else:
