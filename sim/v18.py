@@ -34,8 +34,10 @@ import osqp
 # ---------------------------------------------------------------------------
 # v18 plant constants (council Pass 52)
 # ---------------------------------------------------------------------------
-U_MAX = 5.0           # acceleration saturation |u_i| <= u_max
-                      # (per-component bound: |Re(u_i)|, |Im(u_i)| <= u_max)
+U_MAX = 8.0           # acceleration saturation |u_i| <= u_max (radial / norm-ball)
+                      # Council Pass 69/70: raised 5 -> 8 so the naive
+                      # straight-line reference + CBF satisfies (N+) Nagumo
+                      # input-feasibility with margin (obs h >= 0 strictly).
 R_SAFE = 0.4
 ALPHA_1 = 5.0
 ALPHA_2 = 5.0
@@ -119,77 +121,41 @@ def reference_acceleration(r: np.ndarray, v: np.ndarray, t_targets: np.ndarray,
                             t_targets_dot: np.ndarray = None,
                             obstacles: tuple = (),
                             K_p: float = 4.0, K_d: float = 4.0,
-                            K_obs: float = 16.0,
+                            K_obs: float = 0.0,
                             K_rot: float = None,
                             v_terminal_fb: np.ndarray = None) -> np.ndarray:
-    """Compute u_ref[i] = -K_p*(r_i - target_i) - K_d*v_i + obstacle field.
+    """Compute the AC reference acceleration: PD on position with velocity
+    damping toward the (possibly time-varying) reference target.
 
-    Standard PD on position with velocity damping. With damping, vehicles
-    DECELERATE as they approach the target — they can stop at v = 0.
+        u_ref[i] = -K_p (r_i - t_target_i) - K_d (v_i - t_target_dot_i)
 
-    Obstacle field (Pass 61 council): a Khatib 1986 radial repulsion combined
-    with a Khansari-Zadeh & Billard 2012 / Singletary-Ames 2020 *circulation
-    component* (rotational potential field). The radial term alone creates
-    a known PD+HOCBF deadlock at the bubble boundary (Reis-Aguiar-Silvestre
-    2021 IEEE TAC: "CBF-QPs introduce undesirable asymptotically stable
-    equilibria"). The rotational term adds tangential bias so the closed
-    loop has no zero-velocity equilibria on the bubble boundary.
+    With damping, vehicles DECELERATE as they approach the target and can
+    stop at v = 0.
 
-    Field per agent i, per obstacle k:
-        F_radial = K_obs · overlap² · n_hat        (Khatib outward repulsion)
-        F_circ   = K_rot · overlap² · (i·n_hat)·s  (CCW tangential bias,
-                                                    s = ±1 chosen to align
-                                                    with goal-direction)
-    where n_hat = (r_i - r_obs)/|r_i - r_obs| and overlap = (r_inf - d)/r_inf.
+    Council Pass 69: the circulation-embedded obstacle field of Passes 60-62
+    (Khatib radial + Khansari-Zadeh/Singletary-Ames tangential bias) is
+    REMOVED. Obstacle avoidance in the AC reference is now handled by path
+    planning (the cubic Hermite spline reference trajectory of the diamond
+    demo, `diamond_targets_with_terminal_approach`); the circulation field
+    became vestigial once the planner was introduced (Pass 69 empirical:
+    Hermite reference with K_obs=0 keeps obstacle CBFs strictly positive).
+    The CBF safety filter (QP-resolvent) is the formal safety layer and is
+    independent of the AC reference. The `obstacles` / `K_obs` / `K_rot`
+    arguments are retained as inert no-ops for backward compatibility.
 
-    Default K_rot = K_obs (45° resultant): equal radial + tangential. Set to
-    None to default to K_obs; set to 0.0 to disable circulation (legacy mode).
+    `v_terminal_fb`: optional terminal-heading velocity feedforward (kept for
+    backward compatibility; unused in the current demos).
     """
-    if K_rot is None:
-        K_rot = K_obs
     N = r.shape[0]
     u_ref = np.zeros(N, dtype=complex)
     for i in range(N):
         u_ref[i] = -K_p * (r[i] - t_targets[i]) - K_d * v[i]
         if t_targets_dot is not None:
             u_ref[i] += K_d * t_targets_dot[i]
-        # Optional terminal-heading velocity feedforward: a state-dependent
-        # desired velocity that steers v toward d_hat_terminal as the agent
-        # enters a gaussian shell around its target. Decays to 0 at the
-        # target so static rendezvous is preserved while the LAST commanded
-        # direction equals the prescribed terminal heading.
         if v_terminal_fb is not None:
             u_ref[i] += K_d * v_terminal_fb[i]
-    # Saturate PD term FIRST, leaving headroom for obstacle field. This avoids
-    # the per-component clipping washing out the (smaller) circulation signal
-    # when the saturated PD already fills the budget — diagnosed Pass 61.
-    # Pass 62 fix: cap PD direction to u_PD_cap so circulation is preserved.
-    u_PD_cap = U_MAX * 0.5
-    for i in range(N):
-        pd_mag = float(np.abs(u_ref[i]))
-        if pd_mag > u_PD_cap:
-            u_ref[i] = u_ref[i] * (u_PD_cap / pd_mag)
-
-    if obstacles:
-        for i in range(N):
-            # PD goal direction (used to disambiguate CCW vs CW circulation)
-            goal_dir = t_targets[i] - r[i]
-            for (r_obs, r_obs_radius) in obstacles:
-                d_vec = r[i] - r_obs
-                d = float(np.abs(d_vec))
-                r_inf = 2.5 * (r_obs_radius + R_SAFE)
-                if d < r_inf and d > 1e-6:
-                    overlap = max(r_inf - d, 0.0) / r_inf
-                    n_hat = d_vec / d              # outward unit vector
-                    # Radial repulsion (Khatib 1986)
-                    u_ref[i] += K_obs * overlap ** 2 * n_hat
-                    # Circulation: pick CCW or CW so that the tangential
-                    # component aligns with the vehicle's goal direction
-                    # (avoids reversing direction of motion).
-                    t_hat_ccw = 1j * n_hat         # 90° CCW from n_hat
-                    sign = +1.0 if (goal_dir.conjugate() * t_hat_ccw).real > 0 else -1.0
-                    u_ref[i] += K_rot * overlap ** 2 * (sign * t_hat_ccw)
-    # Final saturation: radial (norm-ball) preserves direction
+    # Radial (norm-ball) saturation, preserving direction — matches the
+    # paper §III.C |u| <= u_max disc constraint.
     for i in range(N):
         m = float(np.abs(u_ref[i]))
         if m > U_MAX:
@@ -451,7 +417,7 @@ def run(r0: np.ndarray, v0: np.ndarray,
         edges: tuple,
         t_targets_fn,
         T_final: float,
-        K_p: float = 4.0, K_d: float = 4.0, K_obs: float = 16.0,
+        K_p: float = 4.0, K_d: float = 4.0, K_obs: float = 0.0,
         obstacles: tuple = (),
         use_safety_filter: bool = True,
         adaptive: bool = False,

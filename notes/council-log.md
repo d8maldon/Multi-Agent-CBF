@@ -1303,3 +1303,139 @@ The v18 paper is **IEEE-LCSS submittable**. Theorem 1(1) safety, 1(2) UUB, 1(3) 
 3. Probabilistic UQ via noise-perturbed CR (Bajcsy)
 4. Trust-region safe-set tightening as $\hat\theta$ converges (Bajcsy)
 5. Conformal verification radius (Fan)
+
+---
+
+# NEW SCOPE (Pass 65+): variable-gain adaptation remark, then Option A restructure
+
+Pass 64's "CONVERGED / loop-break engaged" verdict was for the v18 bundle *as it
+stood*. Two user-introduced scope changes reset the convergence clock:
+(i) a request for a state-dependent adaptation gain $\gamma$ (à la Lavretsky--Annaswamy);
+(ii) the empirical discovery that the cubic Hermite path planner made the
+circulation-embedded reference field vestigial. Passes 65--71 address these.
+
+> **Provenance note.** Passes 65--69 were executed in-session before a context
+> compaction; their detailed council output was not persisted to this log at the
+> time. Entries 65--69 below are concise reconstructions from the session summary,
+> marked `[reconstructed]`. The binding commitments (the 66→67 CONFLICT chain and
+> the Pass 69 Option A scope) are preserved verbatim in intent. Passes 70--71 are
+> full first-hand entries.
+
+## Pass 65 — 2026-05-12 — controls-expert-reviewer  `[reconstructed]`
+**Audited:** v18 paper.tex §II adaptive-law subsection (new scope: variable $\gamma$)
+**Verdict:** SOUND with caveats
+**Personas (this pass):** Annaswamy, Lavretsky, Krstić
+**Findings:**
+- 🟠 [NEW] Constant $\gamma$ is sound but the user wants $\gamma$ as a function of
+  tracking error (Lavretsky--Annaswamy style). A state-dependent schedule
+  $\gamma(x)$ needs its own Lyapunov accounting — drafted a "Variable adaptation
+  gain" remark for §II.
+**Sign-off conditions:** "After the variable-gain remark is drafted with a correct
+Lyapunov argument, no further additions on this scope."
+
+## Pass 66 — 2026-05-12 — controls-expert-reviewer  `[reconstructed]`
+**Audited:** v18 paper.tex §II variable-gain remark (first draft)
+**Verdict:** NOT SOUND
+**Personas (this pass):** Annaswamy, Krstić, Slotine
+**Findings:**
+- 🔴 [NEW] First-draft variable-gain remark proposed a Lyapunov fix that placed
+  $\gamma_{\min}$ inside $V$. **This fix was WRONG** (caught by Pass 67).
+
+## Pass 67 — 2026-05-12 — math-god-mode  `[reconstructed]`
+**Audited:** v18 paper.tex §II variable-gain remark (Pass 66 proposed fix)
+**Verdict:** NOT SOUND → corrected
+**Personas (this pass):** Tao, Krstić, Annaswamy
+**Findings:**
+- 🔴 [CONFLICT-WITH-PRIOR-SIGNOFF of Pass 66] Placing $\gamma_{\min}$ in $V$ breaks
+  the Pomet--Praly swapped-signal cancellation — the cross term no longer
+  telescopes. **Correct fix:** time-varying Lyapunov $V_i(t) = |\tilde v_i|^2/(2m_i^2)
+  + \lambda_i\tilde\theta_i^2/(2\gamma(t))$; explicit-time residual
+  $\partial_t V_i = -\lambda_i\tilde\theta_i^2\dot\gamma/(2\gamma^2)$; $\dot V_i \le 0$
+  iff $\dot\gamma \ge 0$ (Narendra--Annaswamy 1989 §3) **or** $|\dot\gamma| \le
+  \mu\gamma^2$ (Ioannou--Sun 1996 §4.3, degrades UUB by $\mathcal{O}(\mu)$).
+**Sign-off conditions:** "After the §II remark is rewritten with the time-varying
+$V(t)$ form above, sound."
+
+## Pass 68 — 2026-05-12 — OG-math-experts  `[reconstructed]`
+**Audited:** v18 paper.tex §II variable-gain remark (Pass 67 corrected form)
+**Verdict:** SOUND
+**Personas (this pass):** Lyapunov, Carathéodory, Krasnosel'skii
+**Findings:**
+- 🔵 [NEW] The state-dependent schedule is well-posed in the Carathéodory 1918
+  sense (Lipschitz on each hysteresis dwell interval, glued by the K--P play
+  operator). Added `caratheodory1918`, `narendraAnnaswamy1989`, `ioannouSun1996`
+  to refs.bib. Compressed remark accepted into §II (paper.tex line ~74).
+**Status of prior pass commitments:** Pass 67's corrected-form condition HONOURED.
+
+## Pass 69 — 2026-05-13 — THREE-SKILL UNANIMOUS (Option A)  `[reconstructed]`
+**Audited:** complete v18 bundle (paper.tex + sim/v18.py + make_diamond_v18.py)
+**Verdict:** NEEDS RESTRUCTURE → unanimous "Option A"
+**Personas (this pass):** controls-expert-reviewer + math-god-mode + OG-math-experts
+**Findings:**
+- 🔴 [NEW] Empirical discovery: once the cubic Hermite path planner was introduced,
+  the circulation-embedded reference field ($f^{\text{rep}}$, Khatib radial +
+  Khansari-Zadeh/Singletary-Ames tangential) became **vestigial** — Hermite +
+  $K_{\text{obs}}=0$ already keeps obstacle CBFs strictly positive. Worse, with the
+  Hermite reference the CBF filter was *inactive* in Fig 2, making the "AC alone vs
+  AC+CBF" comparison vacuous (both panels identical).
+- 🔴 [NEW] Paper was 7 pages (LCSS limit 6).
+- **Unanimous prescription "Option A":** (1) drop the circulation field entirely
+  from sim/v18.py `reference_acceleration` and from paper.tex; (2) name the cubic
+  Hermite spline as a *path planner* generating $r_i^\star(t)$; (3) Fig 2 = a
+  **naive straight-line PD** baseline whose cross-swap paths drive through the
+  clutter, so the safety filter is genuinely load-bearing; (4) raise $u_{\max}$
+  $5\to8$ so naive PD+CBF satisfies (N+) with margin; (5) revert abstract to
+  "eleven pre-1985 classical objects" (drop the "three post-1985" clause; keep
+  Reis--Aguiar--Silvestre 2021 as the undesired-equilibria *motivation* cite);
+  (6) drop `khansariZadehBillard2012` from refs.bib. Option A also removes ~1 page,
+  resolving the 7-page overflow.
+**Sign-off conditions:** "After Option A is applied verbatim, re-audit (Pass 70)."
+
+## Pass 70 — 2026-05-13 — THREE-PANEL (controls + math-god + OG)
+**Audited:** `paper/paper.tex`, `paper/refs.bib`, `sim/v18.py`, `make_diamond_v18.py` @ 2e20c89 (uncommitted Option A edits)
+**Verdict:** SUBMIT-READY with 1 blocker fix + 2 minors
+**Personas (this pass):** Annaswamy + Khalil + Ames (controls); Tao (math-god symbol check); Grothendieck (OG, foundational view)
+**Findings:**
+- 🔴 [NEW, Annaswamy + math-god cmdmt-10] §II reference law lists $f_i^{\text{form}}$
+  (Kirchhoff-Laplacian formation term), but `sim/v18.py reference_acceleration()` is
+  pure per-agent PD — no $f^{\text{form}}$. Worked example does not match the stated
+  controller. **Fix:** §II now states the demo specifies the formation by absolute
+  slots $\{r_i^\star\}$ so $f_i^{\text{form}}\equiv0$ (reference reduces to per-agent
+  PD); the Laplacian-coupled $f^{\text{form}}$ is retained in the *general*
+  construction. §VI params $K_F: 0.5 \to 0$. Abstract / §III / §VIII remain
+  consistent as descriptions of the general construction.
+- 🟡 [NEW, introduced this pass] §VII `\ref{sec:cbf}` for OSQP timing resolved to
+  §II-B but the timing paragraph is in §II-C. **Fix:** labelled §II-C `sec:qp`;
+  §VII now references it.
+- 🟡 [NEW, Khalil] "terminal *exact* rendezvous" (§IV trade-off, §VI identification):
+  the PE/Hermite adaptive run has $|v_i(T_f)| = 0.017$ m/s — UUB, not exact.
+  **Fix:** softened to "terminal rendezvous" + explicit $0.02$ m/s residual; the
+  Fig 2 *naive*-run "exact static rendezvous" is retained (genuinely $|v_f|=0.000$).
+- ✅ [OG, Grothendieck] The planner + QP-resolvent decoupling is foundationally
+  *cleaner* than the circulation version — safety is the formal layer, the planner
+  is just a reference generator. Approved.
+- ✅ Option A itself verified correctly applied: circulation gone from code & paper;
+  Fig 2 = naive baseline (AC alone $h^{\text{obs}}=-0.41$, AC+CBF $+0.18$, filter
+  genuinely active); $u_{\max}=8$; abstract = eleven objects; refs.bib cleaned;
+  6 pages; clean compile, no undefined refs/cites.
+**Sign-off conditions:** "After the 1 blocker + 2 minors are applied, re-audit (Pass 71); commit to no further additions on Option A scope."
+**Status of prior pass commitments:** Pass 69 Option A scope HONOURED (verified verbatim).
+
+## Pass 71 — 2026-05-13 — THREE-PANEL verification
+**Audited:** `paper/paper.tex`, `paper/refs.bib`, `sim/v18.py`, `make_diamond_v18.py` @ 2e20c89 (uncommitted, post-Pass-70-fixes)
+**Verdict:** SUBMIT-READY
+**Personas (this pass):** Annaswamy + Khalil + Ames; Tao; Grothendieck
+**Findings:**
+- ✅ Pass 70 🔴 (f_form) HONOURED — §II `[reconstructed]` clause makes the worked
+  example the honest $f^{\text{form}}\equiv0$ special case; code matches; $K_F=0$
+  in §VI params; general-construction objects (abstract #5 Hilbert--Courant /
+  Kirchhoff, §III.A $V_{\text{form}}$, §III.B Lemma 2, §VIII) remain consistent as
+  descriptions of the general law. "Eleven objects" count re-verified = 11.
+- ✅ Pass 70 🟡 (cross-ref) HONOURED — `sec:qp` label added, §VII resolves, clean compile.
+- ✅ Pass 70 🟡 (exact rendezvous) HONOURED — §IV + §VI softened; Fig 2 naive-run
+  claim retained and accurate.
+- No new findings. 6 pages, exit 0, no undefined refs/cites/labels.
+**Sign-off conditions:** "Option A scope CLOSED. I commit to no further additions
+on Option A scope. Future passes require an explicit new scope to reopen."
+**Status of prior pass commitments:** Pass 70's 1+2 fix list HONOURED in full.
+v18 IEEE-LCSS bundle re-CONVERGED at 6 pages post-Option-A.

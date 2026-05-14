@@ -84,13 +84,13 @@ DIAMOND_EDGES = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))   # K_4
 OBSTACLES = (
     # Council Pass 53/54/55 Fix-A: central obstacle r_obs=0.5
     (0.0 + 0.0j, 0.5),
-    # Council Pass 60-62: 4 corner obstacles at corners of [-3,3]^2.
-    # Pure-radial Khatib at this geometry deadlocks the closed loop at
-    # the bubble boundary (Reis-Aguiar-Silvestre 2021 IEEE TAC: "CBF-QPs
-    # introduce undesirable asymptotically stable equilibria"). Pass 62
-    # fix: circulation-embedded reference (Khansari-Zadeh & Billard 2012
-    # modulation; Singletary-Klingebiel-Bourne-Browning-Ames 2020) adds
-    # tangential bias near each obstacle, breaking the deadlock.
+    # Council Pass 60-69: 4 corner obstacles at corners of [-3,3]^2.
+    # The GIF demo routes the AC reference around this clutter with a cubic
+    # Hermite spline path planner (diamond_targets_with_terminal_approach).
+    # The Fig 2 safety comparison instead uses the NAIVE straight-line PD
+    # reference (diamond_targets_static) whose cross-swap paths drive
+    # straight through the clutter, so the CBF safety filter is genuinely
+    # active there (AC alone violates; AC+CBF is deflected to safety).
     (-3.0 - 3.0j, 0.5),
     ( 3.0 - 3.0j, 0.5),
     ( 3.0 + 3.0j, 0.5),
@@ -152,90 +152,38 @@ def diamond_targets_with_terminal_approach(t: float) -> np.ndarray:
     return targets
 
 
-def diamond_target_offset_fn(r_now: np.ndarray, t_now: float) -> np.ndarray:
-    """Carrot-on-stick state-dependent target offset for the diamond demo.
-
-    Returns a per-vehicle complex position offset such that the AC reference
-    aims at (r_target_i + offset_i) instead of r_target_i. The offset is
-    designed so vehicles approach along the prescribed d_hat_terminal_i
-    direction (a CW pinwheel around the diamond), producing a SMOOTH
-    CURVED path with no curl/loop at the target.
-
-    Specifically:
-        offset_i(r) = -L_aim * d_hat_terminal_i * f(d_i)
-    where d_i = |r_i - r_target_i| and f is a smooth bump that:
-        - is ~1 when vehicle is in an intermediate annulus (d ∈ [d_near, d_far])
-        - is 0 when vehicle is at target (d → 0)
-        - is 0 when vehicle is very far (d → ∞)
-
-    Mechanism: when vehicle is far, aim point is shifted BEHIND the target
-    along -d_hat. Vehicle drives toward this offset point. As vehicle gets
-    closer to its target, the offset shrinks → aim transitions to the actual
-    target. The last leg of the path is along +d_hat direction.
-
-    Vehicle arrives at r_target with velocity tangent to d_hat (smooth
-    approach), no curl. After arrival, PD pulls v → 0 along the d_hat
-    direction. Chevron stays oriented along d_hat. Physically honest.
-    """
-    L_aim = 2.5     # m, peak offset magnitude
-    d_peak = 2.5    # m, distance from target where offset peaks
-    sigma = 1.5     # m, bump width
-    offset = np.zeros_like(TERMINAL_HEADINGS)
-    for i in range(len(DIAMOND_TARGETS)):
-        d = float(np.abs(r_now[i] - DIAMOND_TARGETS[i]))
-        # Smooth bump: peaks at d_peak, zero at d=0 and d>>d_peak+sigma
-        f = float(np.exp(-((d - d_peak) ** 2) / (2.0 * sigma * sigma)))
-        # Smoothly decay to zero at d=0 so static rendezvous is preserved
-        f *= float(1.0 - np.exp(-d * d / 0.5))   # 0 at d=0, ≈1 at d>0.7
-        offset[i] = -L_aim * TERMINAL_HEADINGS[i] * f
-    return offset
-
-
-def _draw_terminal_headings(ax, length: float = 1.0, alpha: float = 0.85):
-    """Draw the prescribed terminal-heading arrows at each diamond target.
-    These show the CW pinwheel pattern: v0(N)→E, v1(W)→N, v2(S)→W, v3(E)→S.
-    Static annotation independent of the trajectory's instantaneous velocity.
-    """
-    for i, (t_tgt, d_hat) in enumerate(zip(DIAMOND_TARGETS, TERMINAL_HEADINGS)):
-        x0, y0 = float(t_tgt.real), float(t_tgt.imag)
-        dx = length * float(np.real(d_hat))
-        dy = length * float(np.imag(d_hat))
-        ax.annotate("", xy=(x0 + dx, y0 + dy), xytext=(x0, y0),
-                    arrowprops=dict(arrowstyle="-|>", color=AGENT_COLOURS[i],
-                                    lw=2.5, alpha=alpha,
-                                    mutation_scale=22,
-                                    linestyle="-"),
-                    zorder=7)
-
-
 AGENT_COLOURS = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
 
 
 def diamond_run(T_final: float = 14.0,
                 use_safety_filter: bool = True,
-                K_obs: float = 8.0,
-                with_terminal_heading: bool = True) -> dict:
+                naive: bool = False) -> dict:
     """Run a v18 diamond rendezvous: 4 vehicles, 5 obstacles.
 
-    with_terminal_heading=True uses the two-phase time-varying target
-    trajectory so each vehicle approaches its diamond vertex tangent to
-    the prescribed d_hat_terminal direction (CW pinwheel). The path is
-    smooth (no curls); final orientation = approach direction = d_hat.
+    naive=False (default): the AC reference tracks a cubic Hermite spline
+        path planner (`diamond_targets_with_terminal_approach`) that routes
+        smoothly around the obstacle clutter and arrives at each vertex with
+        the prescribed CW-pinwheel terminal heading. Used for the smooth-
+        motion demo (GIF).
+
+    naive=True: the AC reference is a straight-line PD to the static target
+        (`diamond_targets_static`) — no path planning. Cross-swap paths drive
+        through the obstacle clutter, so this is the baseline that *needs*
+        the CBF safety filter. Used for the Fig 2 safety-filter comparison
+        (AC alone violates; AC+CBF is deflected to safety).
     """
-    # Two-phase target trajectory: vehicles approach r_pre = r_target - L*d_hat
-    # first, then move slowly along +d_hat to r_target. Long Phase 2 +
-    # overdamped PD ensures vehicle tracks the gentle target velocity
-    # accurately, ending with v≈0 and last meaningful direction = d_hat.
-    t_targets_fn = (diamond_targets_with_terminal_approach
-                    if with_terminal_heading else diamond_targets_static)
-    K_d = 6.0 if with_terminal_heading else 4.0
+    t_targets_fn = (diamond_targets_static if naive
+                    else diamond_targets_with_terminal_approach)
+    # Overdamped PD for the Hermite planner so the vehicle tracks the gentle
+    # planned velocity accurately; standard critically-damped PD for naive.
+    K_d = 4.0 if naive else 6.0
     return v18.run(
         r0=DIAMOND_R0.copy(),
         v0=np.zeros(4, dtype=complex),
         edges=DIAMOND_EDGES,
         t_targets_fn=t_targets_fn,
         T_final=T_final,
-        K_p=4.0, K_d=K_d, K_obs=K_obs,
+        K_p=4.0, K_d=K_d, K_obs=0.0,
         obstacles=OBSTACLES,
         use_safety_filter=use_safety_filter,
         log_every=2,
@@ -246,10 +194,10 @@ def diamond_run_adaptive(T_final: float = 60.0,
                           T_PE_start: float = 6.0,
                           T_PE: float = 58.0,
                           A_e: float = 2.0,
-                          gamma: float = 5.0,
-                          K_obs: float = 8.0) -> dict:
+                          gamma: float = 5.0) -> dict:
     """Adaptive run: rendezvous-then-PE-then-cooldown protocol (Pass 57).
 
+    Uses the Hermite spline path planner. Phases:
     [0, T_PE_start]      : rendezvous transient, no PE, no adaptation.
     [T_PE_start, T_PE]   : cruise phase with PE injection + Pomet-Praly
                             adaptive law on theta_hat. (W+) Wald recurrent
@@ -262,9 +210,9 @@ def diamond_run_adaptive(T_final: float = 60.0,
         r0=DIAMOND_R0.copy(),
         v0=np.zeros(4, dtype=complex),
         edges=DIAMOND_EDGES,
-        t_targets_fn=diamond_targets_static,
+        t_targets_fn=diamond_targets_with_terminal_approach,
         T_final=T_final,
-        K_p=4.0, K_d=4.0, K_obs=K_obs,
+        K_p=4.0, K_d=6.0, K_obs=0.0,
         obstacles=OBSTACLES,
         use_safety_filter=True,
         adaptive=True,
@@ -297,7 +245,9 @@ def _draw_diamond_targets(ax):
 
 
 def make_figure(out_AC, out_CBF, save_path: Path):
-    fig, axes_grid = plt.subplots(2, 2, figsize=(10, 7),
+    # Council Pass 70: compact height (LCSS 6-page budget). figure* spans
+    # both columns; a shorter aspect keeps the page count at 6.
+    fig, axes_grid = plt.subplots(2, 2, figsize=(10, 5.7),
                                     gridspec_kw={"height_ratios": [3, 1]})
     axes_traj = axes_grid[0]
     axes_h = axes_grid[1]
@@ -327,8 +277,8 @@ def make_figure(out_AC, out_CBF, save_path: Path):
             # End: vehicle body oriented in the LAST MEANINGFUL velocity
             # direction (|v| > 0.05). Scans back from the final frame; the
             # threshold filters PD-settling noise so the chevron shows the
-            # actual approach direction (which, with the two-phase target
-            # trajectory, is d_hat_terminal).
+            # actual approach direction (which, with the Hermite spline path
+            # planner, is the prescribed CW-pinwheel terminal heading).
             end_heading = None
             v_arr = out["v"]
             for k in range(len(xs) - 1, -1, -1):
@@ -421,7 +371,7 @@ def make_identification_figure(out_adapt, save_path: Path,
     N = th.shape[1]
     err = np.abs(th - true_inv[None, :])
 
-    fig, (ax_th, ax_err) = plt.subplots(2, 1, figsize=(8, 5.5), sharex=True)
+    fig, (ax_th, ax_err) = plt.subplots(2, 1, figsize=(8, 4.4), sharex=True)
     for i in range(N):
         ax_th.plot(t, th[:, i], color=AGENT_COLOURS[i],
                    linewidth=1.4, alpha=0.9,
@@ -608,15 +558,21 @@ def main():
     print(f"Plant: dot r = v, dot v = lambda u (double-integrator), |u| <= {v18.U_MAX}")
     print()
 
-    print("[1/2] AC alone (no filter)")
-    out_AC = diamond_run(T_final=T_final, use_safety_filter=False)
+    # Fig 2 is the safety-filter comparison. Both panels use the NAIVE
+    # straight-line PD reference (no path planning) so the cross-swap paths
+    # drive through the obstacle clutter: AC alone violates the obstacle
+    # CBFs; AC+CBF is deflected to safety. (The Hermite path planner used
+    # for the GIF routes around the clutter and never needs the filter, so
+    # it would make a vacuous safety comparison.)
+    print("[1/2] AC alone (no filter, naive straight-line PD)")
+    out_AC = diamond_run(T_final=T_final, use_safety_filter=False, naive=True)
     print(f"  pairwise min h = {out_AC['h'].min():.3f}")
     if out_AC["h_obs"].size > 0:
         print(f"  obstacle min h = {out_AC['h_obs'].min():.3f}")
     print(f"  final |v|_max  = {float(np.abs(out_AC['v'][-1]).max()):.3f}")
 
-    print("[2/2] AC + CBF (filter on)")
-    out_CBF = diamond_run(T_final=T_final, use_safety_filter=True)
+    print("[2/2] AC + CBF (filter on, naive straight-line PD)")
+    out_CBF = diamond_run(T_final=T_final, use_safety_filter=True, naive=True)
     print(f"  pairwise min h = {out_CBF['h'].min():.3f}")
     if out_CBF["h_obs"].size > 0:
         print(f"  obstacle min h = {out_CBF['h_obs'].min():.3f}")
