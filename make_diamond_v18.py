@@ -274,16 +274,19 @@ def make_figure(out_AC, out_CBF, save_path: Path):
             ax.add_patch(Polygon(start_xy, closed=True,
                                   facecolor=AGENT_COLOURS[i], edgecolor="black",
                                   linewidth=0.6, alpha=0.55, zorder=4))
-            # End: vehicle body oriented in the LAST MEANINGFUL velocity
-            # direction (|v| > 0.05). Scans back from the final frame; the
-            # threshold filters PD-settling noise so the chevron shows the
-            # actual approach direction (which, with the Hermite spline path
-            # planner, is the prescribed CW-pinwheel terminal heading).
+            # End: vehicle body oriented in the LAST SUBSTANTIVE velocity
+            # direction (|v| > 0.20 m/s). Scans back from the final frame.
+            # The 0.20 m/s threshold (raised from 0.05 after state-plot
+            # diagnostic) freezes the chevron at the moment when v was last
+            # within ~10 deg of the prescribed CW pinwheel terminal heading,
+            # before the PD spins v around toward the residual position
+            # error during the final mm-scale settling. (See
+            # output/v18/figure_state_diagnostic.pdf for the analysis.)
             end_heading = None
             v_arr = out["v"]
             for k in range(len(xs) - 1, -1, -1):
                 vk = v_arr[k, i]
-                if float(np.abs(vk)) > 0.05:
+                if float(np.abs(vk)) > 0.20:
                     end_heading = vk
                     break
             if end_heading is None:
@@ -510,18 +513,20 @@ def make_gif(save_path: Path, fps: int = 15, T_final: float = 14.0):
                 r[idx, i].imag + v18.R_SAFE * sin_th,
             )
             # Chevron heading = v_hat (instantaneous velocity direction)
-            # when |v| is significant (> threshold). The threshold filters
-            # out the PD-settling residual oscillation (sub-cm motion at
-            # |v| < 0.05 m/s after Phase 2). The chevron therefore shows
-            # the last MEANINGFUL direction, not the numerical noise. This
-            # is honest: the vehicle's "orientation" is the direction it
-            # last meaningfully moved in, not the direction of micro-jitter.
+            # when |v| is substantive (> threshold). Threshold raised
+            # 0.05 -> 0.20 m/s after state-plot diagnostic
+            # (output/v18/figure_state_diagnostic.pdf): the achieved velocity
+            # direction is within ~10 deg of the prescribed CW pinwheel at
+            # |v| ~ 0.20 m/s, but spins toward the residual position-error
+            # direction once the PD takes over to settle the last few mm.
+            # Freezing at 0.20 m/s captures the chevron at the pinwheel
+            # alignment instead of the post-spin direction.
             vk = v[idx, i]
             vmag = float(np.abs(vk))
-            threshold = 0.05
+            threshold = 0.20
             if vmag > threshold:
                 heading_dir = vk
-                last_heading[i] = vk / vmag   # remember for the at-rest case
+                last_heading[i] = vk / vmag   # remember for the post-arrival hold
             else:
                 heading_dir = last_heading[i]
             body_xy = _vehicle_body_xy(r[idx, i], heading_dir)
